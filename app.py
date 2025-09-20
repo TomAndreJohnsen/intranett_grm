@@ -144,6 +144,19 @@ def init_db():
         )
     ''')
 
+    # Suppliers table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS suppliers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            username TEXT,
+            password TEXT,
+            website TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Create default admin user if not exists
     cursor.execute('SELECT * FROM users WHERE email = ?', ('admin@grm.no',))
     if not cursor.fetchone():
@@ -152,6 +165,20 @@ def init_db():
             INSERT INTO users (email, name, password_hash, role)
             VALUES (?, ?, ?, ?)
         ''', ('admin@grm.no', 'Administrator', admin_password, 'admin'))
+
+    # Create default suppliers if not exists
+    cursor.execute('SELECT COUNT(*) FROM suppliers')
+    if cursor.fetchone()[0] == 0:
+        suppliers_data = [
+            ('Bosch', 'grm_bosch', 'B0sch2023!', 'https://www.bosch.com'),
+            ('Makita', 'grm_makita', 'Mak1ta#2023', 'https://www.makita.com'),
+            ('Dewalt', 'grm_dewalt', 'DeW@lt456', 'https://www.dewalt.com'),
+            ('Festool', 'grm_festool', 'F3st00l789', 'https://www.festool.com')
+        ]
+        cursor.executemany('''
+            INSERT INTO suppliers (name, username, password, website)
+            VALUES (?, ?, ?, ?)
+        ''', suppliers_data)
 
     conn.commit()
     conn.close()
@@ -531,6 +558,86 @@ def send_newsletter(newsletter_id):
 
     flash('Nyhetsbrev sendt! (Simulert - e-postintegrasjon må implementeres)')
     return redirect(url_for('newsletter'))
+
+@app.route('/suppliers')
+@login_required
+def suppliers():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+
+    # Get all suppliers ordered alphabetically
+    cursor.execute('''
+        SELECT id, name, username, password, website
+        FROM suppliers
+        ORDER BY name ASC
+    ''')
+    suppliers_list = cursor.fetchall()
+
+    conn.close()
+
+    return render_template('suppliers.html', suppliers=suppliers_list)
+
+@app.route('/add_supplier', methods=['POST'])
+@login_required
+def add_supplier():
+    name = request.form.get('name')
+    username = request.form.get('username')
+    password = request.form.get('password')
+    website = request.form.get('website')
+
+    if name:
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO suppliers (name, username, password, website)
+            VALUES (?, ?, ?, ?)
+        ''', (name, username, password, website))
+        conn.commit()
+        conn.close()
+
+        flash('Leverandør lagt til!')
+    else:
+        flash('Leverandørnavn er påkrevd')
+
+    return redirect(url_for('suppliers'))
+
+@app.route('/update_supplier', methods=['POST'])
+@login_required
+def update_supplier():
+    supplier_id = request.form.get('supplier_id')
+    name = request.form.get('name')
+    username = request.form.get('username')
+    password = request.form.get('password')
+    website = request.form.get('website')
+
+    if supplier_id and name:
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE suppliers
+            SET name = ?, username = ?, password = ?, website = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (name, username, password, website, supplier_id))
+        conn.commit()
+        conn.close()
+
+        flash('Leverandør oppdatert!')
+    else:
+        flash('Leverandørnavn er påkrevd')
+
+    return redirect(url_for('suppliers'))
+
+@app.route('/delete_supplier/<int:supplier_id>', methods=['POST'])
+@login_required
+def delete_supplier(supplier_id):
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM suppliers WHERE id = ?', (supplier_id,))
+    conn.commit()
+    conn.close()
+
+    flash('Leverandør slettet!')
+    return redirect(url_for('suppliers'))
 
 if __name__ == '__main__':
     init_db()
