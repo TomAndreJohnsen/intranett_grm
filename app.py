@@ -15,7 +15,7 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'salg'), exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'verksted'), exist_ok=True)
-os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'hr'), exist_ok=True)
+os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'hms'), exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'it'), exist_ok=True)
 
 # Flask-Login setup
@@ -163,15 +163,25 @@ def dashboard():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
-    # Get recent posts with user names
-    cursor.execute('''
-        SELECT p.id, p.title, p.content, p.created_at, u.name
-        FROM posts p
-        JOIN users u ON p.user_id = u.id
-        ORDER BY p.created_at DESC
-        LIMIT 10
-    ''')
-    posts = cursor.fetchall()
+    # Get recent newsletters (only sent ones for regular users, all for admin)
+    if current_user.role == 'admin':
+        cursor.execute('''
+            SELECT n.id, n.title, n.content, n.sent_date, n.created_at, u.name as created_by
+            FROM newsletters n
+            JOIN users u ON n.created_by = u.id
+            ORDER BY n.created_at DESC
+            LIMIT 10
+        ''')
+    else:
+        cursor.execute('''
+            SELECT n.id, n.title, n.content, n.sent_date, n.created_at, u.name as created_by
+            FROM newsletters n
+            JOIN users u ON n.created_by = u.id
+            WHERE n.sent_date IS NOT NULL
+            ORDER BY n.sent_date DESC
+            LIMIT 10
+        ''')
+    newsletters = cursor.fetchall()
 
     # Get recent tasks
     cursor.execute('''
@@ -197,7 +207,7 @@ def dashboard():
 
     conn.close()
 
-    return render_template('dashboard.html', posts=posts, tasks=tasks, events=events)
+    return render_template('dashboard.html', newsletters=newsletters, tasks=tasks, events=events)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -252,7 +262,7 @@ def create_post():
 @app.route('/documents/<folder>')
 @login_required
 def documents(folder=None):
-    allowed_folders = ['salg', 'verksted', 'hr', 'it']
+    allowed_folders = ['salg', 'verksted', 'hms', 'it']
     if folder and folder not in allowed_folders:
         flash('Ugyldig mappe')
         return redirect(url_for('documents'))
@@ -293,7 +303,7 @@ def upload_document():
         flash('Vennligst velg fil og mappe')
         return redirect(request.referrer)
 
-    if folder not in ['salg', 'verksted', 'hr', 'it']:
+    if folder not in ['salg', 'verksted', 'hms', 'it']:
         flash('Ugyldig mappe')
         return redirect(request.referrer)
 

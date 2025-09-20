@@ -12,7 +12,7 @@
     <nav class="topbar">
         <div class="topbar-content">
             <div class="logo-section">
-                <img src="{{ url_for('static', filename='../logo.png') }}" alt="GRM Logo" class="logo">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="GRM Logo" class="logo">
             </div>
             <div class="nav-menu">
                 <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
@@ -31,9 +31,9 @@
                     <i class="fas fa-tasks"></i>
                     <span>Oppgaver</span>
                 </a>
-                <a href="{{ url_for('newsletter') }}" class="nav-item {% if request.endpoint == 'newsletter' %}active{% endif %}">
-                    <i class="fas fa-newspaper"></i>
-                    <span>Nyheter</span>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-key"></i>
+                    <span>Leverandør</span>
                 </a>
                 {% if current_user.role == 'admin' %}
                 <a href="#" class="nav-item">
