@@ -1,0 +1,20 @@
+# Flask web framework
+Flask==3.0.0
+
+# Microsoft Authentication Library for Python
+msal==1.25.0
+
+# Flask session management (use Cachelib version that fixes bytes issue)
+Flask-Session==0.8.0
+
+# Environment variable management
+python-dotenv==1.0.0
+
+# HTTP requests library
+requests==2.31.0
+
+# Redis support for session storage (optional)
+redis==5.0.1
+
+# Production WSGI server (optional)
+gunicorn==21.2.0
