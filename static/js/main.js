@@ -1,4 +1,32 @@
+/**
+ * Logout function - calls /auth/logout and redirects to login
+ */
+async function logoutUser() {
+    try {
+        // Call the backend logout endpoint
+        const response = await fetch('http://localhost:5050/auth/logout', {
+            method: 'POST',
+            credentials: 'include', // Include session cookies
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            console.log('Logout successful');
+        } else {
+            console.warn('Logout request failed, but continuing...');
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
+
+    // Redirect to home page which will trigger auth check and redirect to login
+    window.location.href = '/';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+
     // User dropdown functionality
     const userMenuBtn = document.querySelector('.user-menu-btn');
     const dropdownContent = document.querySelector('.dropdown-content');

@@ -1,17 +1,15 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import sqlite3
 import os
-import requests
 from datetime import datetime
 import json
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'grm-intranet-secret-key-2023'
 app.config['UPLOAD_FOLDER'] = 'uploads'
-
-# Authentication backend URL
-AUTH_BACKEND_URL = 'http://localhost:5050'
 
 # Create upload directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -20,76 +18,55 @@ os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'verksted'), exist_ok=True
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'hms'), exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'it'), exist_ok=True)
 
+# Flask-Login setup
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
 
-def get_current_user():
-    """
-    Get current user from authentication backend.
+class User(UserMixin):
+    def __init__(self, id, email, name, role):
+        self.id = id
+        self.email = email
+        self.name = name
+        self.role = role
 
-    Returns:
-        dict: User data if authenticated, None if not authenticated
-    """
-    try:
-        # Call the authentication backend with the current request cookies
-        response = requests.get(
-            f'{AUTH_BACKEND_URL}/api/me',
-            cookies=request.cookies,
-            timeout=10
-        )
-
-        if response.status_code == 200:
-            return response.json()
-        else:
-            return None
-    except requests.RequestException:
-        # If backend is down or unreachable, treat as not authenticated
-        return None
-
-
-def auth_required(f):
-    """
-    Decorator to require authentication for a route.
-    If user is not authenticated, redirect to login.
-    """
-    def decorated_function(*args, **kwargs):
-        user = get_current_user()
-        if user is None:
-            # Redirect to authentication backend login
-            return redirect(f'{AUTH_BACKEND_URL}/auth/login')
-        return f(*args, **kwargs)
-    decorated_function.__name__ = f.__name__
-    return decorated_function
-
-
-def admin_required(f):
-    """
-    Decorator to require admin privileges for a route.
-    """
-    def decorated_function(*args, **kwargs):
-        user = get_current_user()
-        if user is None:
-            return redirect(f'{AUTH_BACKEND_URL}/auth/login')
-        if not user.get('is_admin', False):
-            flash('Admin privileges required')
-            return redirect(url_for('dashboard'))
-        return f(*args, **kwargs)
-    decorated_function.__name__ = f.__name__
-    return decorated_function
-
-
-def init_db():
-    """Initialize database with required tables (keeping existing structure)."""
+@login_manager.user_loader
+def load_user(user_id):
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+    user_data = cursor.fetchone()
+    conn.close()
+
+    if user_data:
+        return User(user_data[0], user_data[1], user_data[2], user_data[4])
+    return None
+
+def init_db():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+
+    # Users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
 
     # Posts table (newsfeed)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_email TEXT,
-            user_name TEXT,
+            user_id INTEGER,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
 
@@ -98,11 +75,11 @@ def init_db():
         CREATE TABLE IF NOT EXISTS comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             post_id INTEGER,
-            user_email TEXT,
-            user_name TEXT,
+            user_id INTEGER,
             content TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (post_id) REFERENCES posts (id)
+            FOREIGN KEY (post_id) REFERENCES posts (id),
+            FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
 
@@ -113,9 +90,9 @@ def init_db():
             filename TEXT NOT NULL,
             original_filename TEXT NOT NULL,
             folder TEXT NOT NULL,
-            uploaded_by_email TEXT,
-            uploaded_by_name TEXT,
-            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            uploaded_by INTEGER,
+            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (uploaded_by) REFERENCES users (id)
         )
     ''')
 
@@ -130,9 +107,9 @@ def init_db():
             start_time TIME,
             end_time TIME,
             location TEXT,
-            responsible_user_email TEXT,
-            responsible_user_name TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            responsible_user_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (responsible_user_id) REFERENCES users (id)
         )
     ''')
 
@@ -145,12 +122,12 @@ def init_db():
             status TEXT DEFAULT 'todo',
             priority TEXT DEFAULT 'medium',
             department TEXT,
-            assigned_to_email TEXT,
-            assigned_to_name TEXT,
-            created_by_email TEXT,
-            created_by_name TEXT,
+            assigned_to INTEGER,
+            created_by INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (assigned_to) REFERENCES users (id),
+            FOREIGN KEY (created_by) REFERENCES users (id)
         )
     ''')
 
@@ -161,9 +138,9 @@ def init_db():
             title TEXT NOT NULL,
             content TEXT NOT NULL,
             sent_date TIMESTAMP,
-            created_by_email TEXT,
-            created_by_name TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users (id)
         )
     ''')
 
@@ -179,6 +156,15 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Create default admin user if not exists
+    cursor.execute('SELECT * FROM users WHERE email = ?', ('admin@grm.no',))
+    if not cursor.fetchone():
+        admin_password = generate_password_hash('admin123')
+        cursor.execute('''
+            INSERT INTO users (email, name, password_hash, role)
+            VALUES (?, ?, ?, ?)
+        ''', ('admin@grm.no', 'Administrator', admin_password, 'admin'))
 
     # Create default suppliers if not exists
     cursor.execute('SELECT COUNT(*) FROM suppliers')
@@ -197,35 +183,27 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 # Routes
 @app.route('/')
-def home():
-    """Home page - redirect to dashboard."""
-    return redirect(url_for('dashboard'))
-
-
-@app.route('/dashboard')
-@auth_required
+@login_required
 def dashboard():
-    """Main dashboard page."""
-    user = get_current_user()
-
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
     # Get recent newsletters (only sent ones for regular users, all for admin)
-    if user.get('is_admin', False):
+    if current_user.role == 'admin':
         cursor.execute('''
-            SELECT n.id, n.title, n.content, n.sent_date, n.created_at, n.created_by_name
+            SELECT n.id, n.title, n.content, n.sent_date, n.created_at, u.name as created_by
             FROM newsletters n
+            JOIN users u ON n.created_by = u.id
             ORDER BY n.created_at DESC
             LIMIT 10
         ''')
     else:
         cursor.execute('''
-            SELECT n.id, n.title, n.content, n.sent_date, n.created_at, n.created_by_name
+            SELECT n.id, n.title, n.content, n.sent_date, n.created_at, u.name as created_by
             FROM newsletters n
+            JOIN users u ON n.created_by = u.id
             WHERE n.sent_date IS NOT NULL
             ORDER BY n.sent_date DESC
             LIMIT 10
@@ -234,8 +212,9 @@ def dashboard():
 
     # Get recent tasks
     cursor.execute('''
-        SELECT t.id, t.title, t.status, t.priority, t.assigned_to_name
+        SELECT t.id, t.title, t.status, t.priority, u.name as assigned_to
         FROM tasks t
+        LEFT JOIN users u ON t.assigned_to = u.id
         WHERE t.status != 'completed'
         ORDER BY t.created_at DESC
         LIMIT 5
@@ -244,8 +223,9 @@ def dashboard():
 
     # Get upcoming calendar events
     cursor.execute('''
-        SELECT c.id, c.title, c.start_date, c.start_time, c.location, c.responsible_user_name
+        SELECT c.id, c.title, c.start_date, c.start_time, c.location, u.name as responsible
         FROM calendar_events c
+        LEFT JOIN users u ON c.responsible_user_id = u.id
         WHERE c.start_date >= date('now')
         ORDER BY c.start_date, c.start_time
         LIMIT 5
@@ -254,17 +234,62 @@ def dashboard():
 
     conn.close()
 
-    return render_template('dashboard.html', user=user, newsletters=newsletters, tasks=tasks, events=events)
+    return render_template('dashboard.html', newsletters=newsletters, tasks=tasks, events=events)
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
+        user_data = cursor.fetchone()
+        conn.close()
+
+        if user_data and check_password_hash(user_data[3], password):
+            user = User(user_data[0], user_data[1], user_data[2], user_data[4])
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Ugyldig e-post eller passord')
+
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/create_post', methods=['POST'])
+@login_required
+def create_post():
+    title = request.form.get('title')
+    content = request.form.get('content')
+
+    if title and content:
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO posts (user_id, title, content)
+            VALUES (?, ?, ?)
+        ''', (current_user.id, title, content))
+        conn.commit()
+        conn.close()
+
+        flash('Innlegg publisert!')
+    else:
+        flash('Vennligst fyll ut alle felt')
+
+    return redirect(url_for('dashboard'))
 
 @app.route('/documents')
 @app.route('/documents/<folder>')
-@auth_required
+@login_required
 def documents(folder=None):
-    """Documents page."""
-    user = get_current_user()
     allowed_folders = ['salg', 'verksted', 'hms', 'it']
-
     if folder and folder not in allowed_folders:
         flash('Ugyldig mappe')
         return redirect(url_for('documents'))
@@ -274,8 +299,9 @@ def documents(folder=None):
 
     if folder:
         cursor.execute('''
-            SELECT d.id, d.original_filename, d.filename, d.upload_date, d.uploaded_by_name
+            SELECT d.id, d.original_filename, d.filename, d.upload_date, u.name
             FROM documents d
+            JOIN users u ON d.uploaded_by = u.id
             WHERE d.folder = ?
             ORDER BY d.upload_date DESC
         ''', (folder,))
@@ -285,18 +311,14 @@ def documents(folder=None):
 
     conn.close()
 
-    return render_template('documents.html', user=user,
+    return render_template('documents.html',
                          current_folder=folder,
                          documents=documents_list,
                          folders=allowed_folders)
 
-
 @app.route('/upload_document', methods=['POST'])
-@auth_required
+@login_required
 def upload_document():
-    """Handle document upload."""
-    user = get_current_user()
-
     if 'file' not in request.files:
         flash('Ingen fil valgt')
         return redirect(request.referrer)
@@ -321,9 +343,9 @@ def upload_document():
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO documents (filename, original_filename, folder, uploaded_by_email, uploaded_by_name)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (unique_filename, filename, folder, user.get('mail'), user.get('displayName')))
+            INSERT INTO documents (filename, original_filename, folder, uploaded_by)
+            VALUES (?, ?, ?, ?)
+        ''', (unique_filename, filename, folder, current_user.id))
         conn.commit()
         conn.close()
 
@@ -331,11 +353,9 @@ def upload_document():
 
     return redirect(url_for('documents', folder=folder))
 
-
 @app.route('/download/<int:doc_id>')
-@auth_required
+@login_required
 def download_document(doc_id):
-    """Download document."""
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
     cursor.execute('SELECT filename, original_filename, folder FROM documents WHERE id = ?', (doc_id,))
@@ -349,36 +369,29 @@ def download_document(doc_id):
         flash('Fil ikke funnet')
         return redirect(url_for('documents'))
 
-
 @app.route('/calendar')
-@auth_required
+@login_required
 def calendar():
-    """Calendar page."""
-    user = get_current_user()
-
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
     # Get all events for the current month
     cursor.execute('''
         SELECT c.id, c.title, c.description, c.start_date, c.end_date,
-               c.start_time, c.end_time, c.location, c.responsible_user_name
+               c.start_time, c.end_time, c.location, u.name as responsible
         FROM calendar_events c
+        LEFT JOIN users u ON c.responsible_user_id = u.id
         ORDER BY c.start_date, c.start_time
     ''')
     events = cursor.fetchall()
 
     conn.close()
 
-    return render_template('calendar.html', user=user, events=events)
-
+    return render_template('calendar.html', events=events)
 
 @app.route('/create_event', methods=['POST'])
-@auth_required
+@login_required
 def create_event():
-    """Create calendar event."""
-    user = get_current_user()
-
     title = request.form.get('title')
     description = request.form.get('description')
     start_date = request.form.get('start_date')
@@ -392,9 +405,9 @@ def create_event():
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO calendar_events
-            (title, description, start_date, end_date, start_time, end_time, location, responsible_user_email, responsible_user_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (title, description, start_date, end_date, start_time, end_time, location, user.get('mail'), user.get('displayName')))
+            (title, description, start_date, end_date, start_time, end_time, location, responsible_user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (title, description, start_date, end_date, start_time, end_time, location, current_user.id))
         conn.commit()
         conn.close()
 
@@ -404,21 +417,19 @@ def create_event():
 
     return redirect(url_for('calendar'))
 
-
 @app.route('/tasks')
-@auth_required
+@login_required
 def tasks():
-    """Tasks page."""
-    user = get_current_user()
-
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
     # Get all tasks with user information
     cursor.execute('''
         SELECT t.id, t.title, t.description, t.status, t.priority, t.department,
-               t.created_at, t.created_by_name, t.assigned_to_name
+               t.created_at, u1.name as created_by, u2.name as assigned_to
         FROM tasks t
+        JOIN users u1 ON t.created_by = u1.id
+        LEFT JOIN users u2 ON t.assigned_to = u2.id
         ORDER BY
             CASE t.status
                 WHEN 'todo' THEN 1
@@ -434,17 +445,17 @@ def tasks():
     ''')
     tasks_list = cursor.fetchall()
 
+    # Get all users for assignment dropdown
+    cursor.execute('SELECT id, name FROM users ORDER BY name')
+    users = cursor.fetchall()
+
     conn.close()
 
-    return render_template('tasks.html', user=user, tasks=tasks_list)
-
+    return render_template('tasks.html', tasks=tasks_list, users=users)
 
 @app.route('/create_task', methods=['POST'])
-@auth_required
+@login_required
 def create_task():
-    """Create task."""
-    user = get_current_user()
-
     title = request.form.get('title')
     description = request.form.get('description')
     priority = request.form.get('priority', 'medium')
@@ -455,9 +466,9 @@ def create_task():
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO tasks (title, description, priority, department, assigned_to_name, created_by_email, created_by_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (title, description, priority, department, assigned_to or None, user.get('mail'), user.get('displayName')))
+            INSERT INTO tasks (title, description, priority, department, assigned_to, created_by)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (title, description, priority, department, assigned_to if assigned_to else None, current_user.id))
         conn.commit()
         conn.close()
 
@@ -467,11 +478,9 @@ def create_task():
 
     return redirect(url_for('tasks'))
 
-
 @app.route('/update_task_status', methods=['POST'])
-@auth_required
+@login_required
 def update_task_status():
-    """Update task status."""
     task_id = request.form.get('task_id')
     new_status = request.form.get('status')
 
@@ -489,34 +498,31 @@ def update_task_status():
 
     return redirect(url_for('tasks'))
 
-
 @app.route('/newsletter')
-@auth_required
+@login_required
 def newsletter():
-    """Newsletter page."""
-    user = get_current_user()
-
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
     # Get all newsletters
     cursor.execute('''
-        SELECT n.id, n.title, n.content, n.sent_date, n.created_at, n.created_by_name
+        SELECT n.id, n.title, n.content, n.sent_date, n.created_at, u.name as created_by
         FROM newsletters n
+        JOIN users u ON n.created_by = u.id
         ORDER BY n.created_at DESC
     ''')
     newsletters = cursor.fetchall()
 
     conn.close()
 
-    return render_template('newsletter.html', user=user, newsletters=newsletters)
-
+    return render_template('newsletter.html', newsletters=newsletters)
 
 @app.route('/create_newsletter', methods=['POST'])
-@admin_required
+@login_required
 def create_newsletter():
-    """Create newsletter."""
-    user = get_current_user()
+    if current_user.role != 'admin':
+        flash('Kun administratorer kan opprette nyhetsbrev')
+        return redirect(url_for('newsletter'))
 
     title = request.form.get('title')
     content = request.form.get('content')
@@ -525,9 +531,9 @@ def create_newsletter():
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO newsletters (title, content, created_by_email, created_by_name)
-            VALUES (?, ?, ?, ?)
-        ''', (title, content, user.get('mail'), user.get('displayName')))
+            INSERT INTO newsletters (title, content, created_by)
+            VALUES (?, ?, ?)
+        ''', (title, content, current_user.id))
         conn.commit()
         conn.close()
 
@@ -537,11 +543,13 @@ def create_newsletter():
 
     return redirect(url_for('newsletter'))
 
-
 @app.route('/send_newsletter/<int:newsletter_id>', methods=['POST'])
-@admin_required
+@login_required
 def send_newsletter(newsletter_id):
-    """Send newsletter."""
+    if current_user.role != 'admin':
+        flash('Kun administratorer kan sende nyhetsbrev')
+        return redirect(url_for('newsletter'))
+
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
     cursor.execute('UPDATE newsletters SET sent_date = CURRENT_TIMESTAMP WHERE id = ?', (newsletter_id,))
@@ -551,13 +559,9 @@ def send_newsletter(newsletter_id):
     flash('Nyhetsbrev sendt! (Simulert - e-postintegrasjon må implementeres)')
     return redirect(url_for('newsletter'))
 
-
 @app.route('/suppliers')
-@auth_required
+@login_required
 def suppliers():
-    """Suppliers page."""
-    user = get_current_user()
-
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
@@ -571,13 +575,11 @@ def suppliers():
 
     conn.close()
 
-    return render_template('suppliers.html', user=user, suppliers=suppliers_list)
-
+    return render_template('suppliers.html', suppliers=suppliers_list)
 
 @app.route('/add_supplier', methods=['POST'])
-@auth_required
+@login_required
 def add_supplier():
-    """Add supplier."""
     name = request.form.get('name')
     username = request.form.get('username')
     password = request.form.get('password')
@@ -599,11 +601,9 @@ def add_supplier():
 
     return redirect(url_for('suppliers'))
 
-
 @app.route('/update_supplier', methods=['POST'])
-@auth_required
+@login_required
 def update_supplier():
-    """Update supplier."""
     supplier_id = request.form.get('supplier_id')
     name = request.form.get('name')
     username = request.form.get('username')
@@ -627,11 +627,9 @@ def update_supplier():
 
     return redirect(url_for('suppliers'))
 
-
 @app.route('/delete_supplier/<int:supplier_id>', methods=['POST'])
-@auth_required
+@login_required
 def delete_supplier(supplier_id):
-    """Delete supplier."""
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
     cursor.execute('DELETE FROM suppliers WHERE id = ?', (supplier_id,))
@@ -641,33 +639,6 @@ def delete_supplier(supplier_id):
     flash('Leverandør slettet!')
     return redirect(url_for('suppliers'))
 
-
-@app.route('/create_post', methods=['POST'])
-@auth_required
-def create_post():
-    """Create dashboard post."""
-    user = get_current_user()
-
-    title = request.form.get('title')
-    content = request.form.get('content')
-
-    if title and content:
-        conn = sqlite3.connect('database.db')
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO posts (user_email, user_name, title, content)
-            VALUES (?, ?, ?, ?)
-        ''', (user.get('mail'), user.get('displayName'), title, content))
-        conn.commit()
-        conn.close()
-
-        flash('Innlegg publisert!')
-    else:
-        flash('Vennligst fyll ut alle felt')
-
-    return redirect(url_for('dashboard'))
-
-
 if __name__ == '__main__':
     init_db()
-    app.run(debug=True, port=5000)
+    app.run(debug=True)

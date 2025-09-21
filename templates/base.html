@@ -5,10 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}GRM Intranett{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    {% if current_user.is_authenticated %}
+    {% if not user %}
+    <!-- Login section - shown when user is NOT logged in -->
+    <div class="login-container">
+        <div class="login-box">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="GRM Logo" class="logo">
+                <h1>GRM Intranett</h1>
+            </div>
+            <div class="login-content">
+                <h2>Velkommen til GRM Intranett</h2>
+                <p>Logg inn med din Office 365-konto for å få tilgang til intranettet.</p>
+                <a href="http://localhost:5050/auth/login" class="login-btn">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Logg inn med Office 365
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Navigation - shown when user IS logged in -->
     <nav class="topbar">
         <div class="topbar-content">
             <div class="logo-section">
@@ -35,7 +55,8 @@
                     <i class="fas fa-key"></i>
                     <span>Leverandør</span>
                 </a>
-                {% if current_user.role == 'admin' %}
+                {% if user.is_admin %}
+                <!-- Admin link - shown only for admin users -->
                 <a href="#" class="nav-item">
                     <i class="fas fa-cog"></i>
                     <span>Innstillinger</span>
@@ -44,7 +65,7 @@
             </div>
             <div class="user-section">
                 <div class="user-info">
-                    <span class="user-name">{{ current_user.name }}</span>
+                    <span class="user-name">{{ user.displayName or user.mail }}</span>
                     <div class="user-dropdown">
                         <button class="user-menu-btn">
                             <i class="fas fa-user-circle"></i>
@@ -52,7 +73,12 @@
                         </button>
                         <div class="dropdown-content">
                             <a href="#"><i class="fas fa-user"></i> Profil</a>
-                            <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logg ut</a>
+                            <div class="user-email">{{ user.mail }}</div>
+                            {% if user.jobTitle %}
+                            <div class="user-title">{{ user.jobTitle }}</div>
+                            {% endif %}
+                            <hr>
+                            <a href="#" onclick="logoutUser()"><i class="fas fa-sign-out-alt"></i> Logg ut</a>
                         </div>
                     </div>
                 </div>
