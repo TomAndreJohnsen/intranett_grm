@@ -1,282 +1,83 @@
-"""
-Unified GRM Intranet application with integrated Microsoft Entra ID authentication.
-Combines the main intranet functionality with authentication backend in a single Flask app.
-"""
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, session
-from flask_session import Session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 import sqlite3
 import os
-import uuid
-import msal
 import requests
 from datetime import datetime
 import json
-from functools import wraps
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
-# Configuration class
-class Config:
-    """Application configuration class."""
-
-    # Flask configuration
-    SECRET_KEY = str(os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production'))
-
-    # Microsoft Entra ID configuration
-    CLIENT_ID = os.environ.get('MS_CLIENT_ID')
-    CLIENT_SECRET = os.environ.get('MS_CLIENT_SECRET')
-    TENANT_ID = os.environ.get('MS_TENANT_ID')
-
-    # Application configuration
-    BASE_URL = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
-    REDIRECT_URI = f"{BASE_URL}/auth/callback"
-
-    # Admin users (comma-separated UPNs)
-    ADMIN_UPNS = [upn.strip() for upn in os.environ.get('ADMIN_UPNS', '').split(',') if upn.strip()]
-
-    # Session configuration
-    SESSION_TYPE = str(os.environ.get('SESSION_TYPE', 'filesystem'))
-    SESSION_PERMANENT = False
-    SESSION_USE_SIGNER = True
-    SESSION_KEY_PREFIX = str(os.environ.get('SESSION_KEY_PREFIX', 'intranet:'))
-    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = str(os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax'))
-    SESSION_COOKIE_NAME = str(os.environ.get('SESSION_COOKIE_NAME', 'session'))
-    SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN')  # None for localhost
-    SESSION_COOKIE_PATH = str(os.environ.get('SESSION_COOKIE_PATH', '/'))
-    SESSION_FILE_THRESHOLD = int(os.environ.get('SESSION_FILE_THRESHOLD', 500))
-
-    # Microsoft Graph API scopes
-    SCOPES = [
-        "https://graph.microsoft.com/User.Read"
-    ]
-
-    # Microsoft endpoints
-    AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-
-    @classmethod
-    def validate_config(cls):
-        """Validate that all required configuration is present and properly typed."""
-        # Check required MS variables
-        required_vars = ['CLIENT_ID', 'CLIENT_SECRET', 'TENANT_ID']
-        missing_vars = []
-
-        for var in required_vars:
-            if not getattr(cls, var):
-                missing_vars.append(f'MS_{var}')
-
-        if missing_vars:
-            raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
-
-        # Validate SECRET_KEY
-        if not cls.SECRET_KEY or cls.SECRET_KEY == 'dev-secret-key-change-in-production':
-            raise ValueError("FLASK_SECRET_KEY must be set to a secure random string in production")
-
-        if not isinstance(cls.SECRET_KEY, str):
-            raise TypeError(f"FLASK_SECRET_KEY must be a string, got {type(cls.SECRET_KEY)}")
-
-        if len(cls.SECRET_KEY) < 32:
-            raise ValueError("FLASK_SECRET_KEY should be at least 32 characters long")
-
-        return True
-
-
-# Authentication Manager
-class AuthManager:
-    """Manages Microsoft Entra ID authentication using MSAL."""
-
-    def __init__(self):
-        """Initialize the authentication manager."""
-        self.msal_app = None
-        self._initialized = False
-
-    def _ensure_initialized(self):
-        """Lazy initialization of MSAL client."""
-        if not self._initialized:
-            try:
-                # Validate configuration
-                Config.validate_config()
-
-                # Initialize MSAL confidential client
-                self.msal_app = msal.ConfidentialClientApplication(
-                    Config.CLIENT_ID,
-                    authority=Config.AUTHORITY,
-                    client_credential=Config.CLIENT_SECRET
-                )
-                self._initialized = True
-            except Exception as e:
-                raise ValueError(f"Authentication configuration error: {str(e)}")
-
-    def get_auth_url(self):
-        """Generate the Microsoft login URL."""
-        # Ensure MSAL client is initialized
-        self._ensure_initialized()
-
-        # Generate a unique state parameter for CSRF protection
-        state = str(uuid.uuid4())
-        session['auth_state'] = state
-
-        # Build authorization URL
-        auth_url = self.msal_app.get_authorization_request_url(
-            scopes=list(Config.SCOPES),
-            state=state,
-            redirect_uri=Config.REDIRECT_URI
-        )
-
-        return auth_url, state
-
-    def handle_callback(self, auth_code, state):
-        """Handle the OAuth callback from Microsoft."""
-        # Ensure MSAL client is initialized
-        self._ensure_initialized()
-
-        # Verify state parameter to prevent CSRF attacks
-        if state != session.get('auth_state'):
-            return None
-
-        # Exchange authorization code for access token
-        result = self.msal_app.acquire_token_by_authorization_code(
-            auth_code,
-            scopes=list(Config.SCOPES),
-            redirect_uri=Config.REDIRECT_URI
-        )
-
-        if 'error' in result:
-            return None
-
-        # Store tokens in session
-        session['access_token'] = result.get('access_token')
-        session['id_token'] = result.get('id_token')
-        session['user_id'] = result.get('id_token_claims', {}).get('oid')
-
-        # Fetch user profile from Microsoft Graph
-        user_info = self.get_user_profile(result.get('access_token'))
-        if user_info:
-            # Store user information in session
-            session['user'] = user_info
-            session['is_admin'] = user_info.get('userPrincipalName', '').lower() in [upn.lower() for upn in Config.ADMIN_UPNS]
-
-        # Clear the auth state
-        session.pop('auth_state', None)
-
-        return user_info
-
-    def get_user_profile(self, access_token):
-        """Fetch user profile from Microsoft Graph API."""
-        if not access_token:
-            return None
-
-        # Microsoft Graph API endpoint for user profile
-        graph_url = 'https://graph.microsoft.com/v1.0/me'
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json'
-        }
-
-        try:
-            response = requests.get(graph_url, headers=headers, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException:
-            return None
-
-    def logout(self):
-        """Clear user session and return Microsoft logout URL."""
-        # Clear all session data
-        session.clear()
-
-        # Return Microsoft logout URL
-        logout_url = f"{Config.AUTHORITY}/oauth2/v2.0/logout?post_logout_redirect_uri={Config.BASE_URL}"
-        return logout_url
-
-    def is_authenticated(self):
-        """Check if the current user is authenticated."""
-        return 'user' in session and 'access_token' in session
-
-    def get_current_user(self):
-        """Get current user information from session."""
-        if self.is_authenticated():
-            user_data = session.get('user', {})
-            user_data['is_admin'] = session.get('is_admin', False)
-            return user_data
-        return None
-
-
-# Create Flask app
 app = Flask(__name__)
-app.config.from_object(Config)
+app.config['SECRET_KEY'] = 'grm-intranet-secret-key-2023'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
-# Configure session management
-if Config.SESSION_TYPE == 'redis' and os.environ.get('REDIS_URL'):
-    import redis
-    app.config['SESSION_REDIS'] = redis.from_url(os.environ.get('REDIS_URL'))
-else:
-    # Use filesystem for session storage (development)
-    app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
-    os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+# Authentication backend URL
+AUTH_BACKEND_URL = 'http://localhost:5050'
 
-# Initialize session extension
-Session(app)
-
-# Create upload directories
+# Create upload directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'salg'), exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'verksted'), exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'hms'), exist_ok=True)
 os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'it'), exist_ok=True)
 
-# Initialize auth manager
-auth_manager = AuthManager()
+
+def get_current_user():
+    """
+    Get current user from authentication backend.
+
+    Returns:
+        dict: User data if authenticated, None if not authenticated
+    """
+    try:
+        # Call the authentication backend with the current request cookies
+        response = requests.get(
+            f'{AUTH_BACKEND_URL}/api/me',
+            cookies=request.cookies,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return None
+    except requests.RequestException:
+        # If backend is down or unreachable, treat as not authenticated
+        return None
 
 
-# Authentication decorators
 def auth_required(f):
-    """Decorator to require authentication for a route."""
-    @wraps(f)
+    """
+    Decorator to require authentication for a route.
+    If user is not authenticated, redirect to login.
+    """
     def decorated_function(*args, **kwargs):
-        if not auth_manager.is_authenticated():
-            # For API routes, return JSON error
-            if request.path.startswith('/api/'):
-                return jsonify({'error': 'Authentication required'}), 401
-            # For web routes, redirect to login
-            return redirect(url_for('auth_login'))
+        user = get_current_user()
+        if user is None:
+            # Redirect to authentication backend login
+            return redirect(f'{AUTH_BACKEND_URL}/auth/login')
         return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
     return decorated_function
 
 
 def admin_required(f):
-    """Decorator to require admin privileges for a route."""
-    @wraps(f)
+    """
+    Decorator to require admin privileges for a route.
+    """
     def decorated_function(*args, **kwargs):
-        if not auth_manager.is_authenticated():
-            if request.path.startswith('/api/'):
-                return jsonify({'error': 'Authentication required'}), 401
-            return redirect(url_for('auth_login'))
-
-        if not session.get('is_admin', False):
-            if request.path.startswith('/api/'):
-                return jsonify({'error': 'Admin privileges required'}), 403
+        user = get_current_user()
+        if user is None:
+            return redirect(f'{AUTH_BACKEND_URL}/auth/login')
+        if not user.get('is_admin', False):
             flash('Admin privileges required')
             return redirect(url_for('dashboard'))
-
         return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
     return decorated_function
 
 
-# Helper function to get current user
-def get_current_user():
-    """Get current user from session."""
-    return auth_manager.get_current_user()
-
-
-# Database initialization
 def init_db():
-    """Initialize database with required tables."""
+    """Initialize database with required tables (keeping existing structure)."""
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
@@ -397,117 +198,11 @@ def init_db():
     conn.close()
 
 
-# Authentication Routes
-@app.route('/auth/login')
-def auth_login():
-    """Initiate Microsoft Entra ID login flow."""
-    try:
-        auth_url, state = auth_manager.get_auth_url()
-        return redirect(auth_url)
-    except Exception as e:
-        return jsonify({'error': 'Failed to initiate login', 'details': str(e)}), 500
-
-
-@app.route('/auth/callback')
-def auth_callback():
-    """Handle OAuth callback from Microsoft Entra ID."""
-    # Get authorization code and state from callback
-    auth_code = request.args.get('code')
-    state = request.args.get('state')
-    error = request.args.get('error')
-
-    # Handle OAuth errors
-    if error:
-        error_description = request.args.get('error_description', 'Unknown error')
-        flash(f'Login error: {error_description}')
-        return redirect(url_for('home'))
-
-    # Handle missing authorization code
-    if not auth_code:
-        flash('Missing authorization code')
-        return redirect(url_for('home'))
-
-    try:
-        # Process the callback and get user info
-        user_info = auth_manager.handle_callback(auth_code, state)
-
-        if user_info:
-            # Successful authentication - redirect to dashboard
-            flash(f'Welcome, {user_info.get("displayName", "User")}!')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Authentication failed')
-            return redirect(url_for('home'))
-
-    except Exception as e:
-        flash(f'Callback processing failed: {str(e)}')
-        return redirect(url_for('home'))
-
-
-@app.route('/auth/logout', methods=['POST'])
-def auth_logout():
-    """Log out the current user."""
-    try:
-        logout_url = auth_manager.logout()
-        # For AJAX requests, return JSON
-        if request.is_json or request.headers.get('Content-Type') == 'application/json':
-            return jsonify({
-                'success': True,
-                'logout_url': logout_url,
-                'message': 'Logged out successfully'
-            })
-        # For form submissions, redirect
-        return redirect(logout_url)
-    except Exception as e:
-        if request.is_json or request.headers.get('Content-Type') == 'application/json':
-            return jsonify({'error': 'Logout failed', 'details': str(e)}), 500
-        flash('Logout failed')
-        return redirect(url_for('home'))
-
-
-@app.route('/api/me')
-def api_me():
-    """Get current user information."""
-    try:
-        user_info = auth_manager.get_current_user()
-        if user_info:
-            # Return essential user information
-            return jsonify({
-                'id': user_info.get('id'),
-                'displayName': user_info.get('displayName'),
-                'givenName': user_info.get('givenName'),
-                'surname': user_info.get('surname'),
-                'userPrincipalName': user_info.get('userPrincipalName'),
-                'mail': user_info.get('mail'),
-                'jobTitle': user_info.get('jobTitle'),
-                'department': user_info.get('department'),
-                'is_admin': user_info.get('is_admin', False)
-            })
-        else:
-            return jsonify({'error': 'User not found'}), 401
-
-    except Exception as e:
-        return jsonify({'error': 'Failed to get user info', 'details': str(e)}), 500
-
-
-@app.route('/api/healthz')
-def api_health():
-    """Health check endpoint."""
-    return jsonify({
-        'status': 'ok',
-        'service': 'intranet-unified',
-        'authenticated': auth_manager.is_authenticated()
-    })
-
-
-# Main Application Routes
+# Routes
 @app.route('/')
 def home():
-    """Home page."""
-    user = get_current_user()
-    if user:
-        return redirect(url_for('dashboard'))
-    return render_template('base.html', user=user)
+    """Home page - redirect to dashboard."""
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/dashboard')
@@ -664,6 +359,7 @@ def calendar():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
+    # Get all events for the current month
     cursor.execute('''
         SELECT c.id, c.title, c.description, c.start_date, c.end_date,
                c.start_time, c.end_time, c.location, c.responsible_user_name
@@ -718,6 +414,7 @@ def tasks():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
+    # Get all tasks with user information
     cursor.execute('''
         SELECT t.id, t.title, t.description, t.status, t.priority, t.department,
                t.created_at, t.created_by_name, t.assigned_to_name
@@ -802,6 +499,7 @@ def newsletter():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
+    # Get all newsletters
     cursor.execute('''
         SELECT n.id, n.title, n.content, n.sent_date, n.created_at, n.created_by_name
         FROM newsletters n
@@ -863,6 +561,7 @@ def suppliers():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
 
+    # Get all suppliers ordered alphabetically
     cursor.execute('''
         SELECT id, name, username, password, website
         FROM suppliers
@@ -969,45 +668,6 @@ def create_post():
     return redirect(url_for('dashboard'))
 
 
-# Error handlers
-@app.errorhandler(401)
-def unauthorized(error):
-    """Handle unauthorized access."""
-    return render_template('base.html', user=None), 401
-
-
-@app.errorhandler(403)
-def forbidden(error):
-    """Handle forbidden access."""
-    flash('Access forbidden')
-    return redirect(url_for('dashboard')), 403
-
-
-@app.errorhandler(404)
-def not_found(error):
-    """Handle not found errors."""
-    user = get_current_user()
-    return render_template('base.html', user=user), 404
-
-
-@app.errorhandler(500)
-def internal_error(error):
-    """Handle internal server errors."""
-    user = get_current_user()
-    return render_template('base.html', user=user), 500
-
-
 if __name__ == '__main__':
     init_db()
-    try:
-        print("Starting GRM Intranet with integrated authentication...")
-        print(f"Base URL: {Config.BASE_URL}")
-        print(f"Session type: {Config.SESSION_TYPE}")
-        print(f"Admin users: {len(Config.ADMIN_UPNS)} configured")
-
-        app.run(debug=True, host='0.0.0.0', port=5000)
-    except ValueError as e:
-        print(f"Configuration error: {e}")
-        print("Please check your .env file and ensure all required variables are set.")
-    except Exception as e:
-        print(f"Failed to start application: {e}")
+    app.run(debug=True, port=5000)

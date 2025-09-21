@@ -3,8 +3,8 @@
  */
 async function logoutUser() {
     try {
-        // Call the backend logout endpoint
-        const response = await fetch('http://localhost:5050/auth/logout', {
+        // Call the unified app logout endpoint
+        const response = await fetch('/auth/logout', {
             method: 'POST',
             credentials: 'include', // Include session cookies
             headers: {
@@ -14,6 +14,12 @@ async function logoutUser() {
 
         if (response.ok) {
             console.log('Logout successful');
+            // The response might contain a redirect URL to Microsoft logout
+            const data = await response.json();
+            if (data.logout_url) {
+                window.location.href = data.logout_url;
+                return;
+            }
         } else {
             console.warn('Logout request failed, but continuing...');
         }
@@ -21,7 +27,7 @@ async function logoutUser() {
         console.error('Logout error:', error);
     }
 
-    // Redirect to home page which will trigger auth check and redirect to login
+    // Fallback: redirect to home page
     window.location.href = '/';
 }
 
