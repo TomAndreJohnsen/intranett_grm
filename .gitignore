@@ -1,18 +1,53 @@
-# Ignorer .env uansett hvor den ligger
+# Environment files
 .env
+.env.*
+!.env.example
+*/.env
 **/.env
 
-# Virtuelle miljøer
-venv/
-*/venv/
+# Flask session files (KRITISK!)
+flask_session/
+*/flask_session/
+**/flask_session/
+flask_session_backup/
 
-# __pycache__-mapper
+# Virtual environments
+venv/
+env/
+ENV/
+*/venv/
+*/env/
+
+# Python cache files
 __pycache__/
 **/__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Database-filer (hvis du vil)
+# Database files
 *.db
+*.sqlite
+*.sqlite3
 
-# OS-spesifikke filer
+# Instance folder
+instance/
+
+# Logs
+*.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
 .DS_Store
 Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
