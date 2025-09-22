@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oppgaver - GRM Intranett</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .main-content {
+            padding: 2rem 0;
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .breadcrumb {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .breadcrumb a {
+            color: #10B981;
+            text-decoration: none;
+        }
+
+        .controls-section {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .create-task-section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stats-section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-width: 300px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: #f3f4f6;
+            border-radius: 6px;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #10B981;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-family: inherit;
+        }
+
+        .btn {
+            background: #10B981;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn-small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .kanban-column {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+            min-height: 500px;
+        }
+
+        .column-header {
+            padding: 1rem;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .column-title {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .column-count {
+            background: #e5e7eb;
+            color: #6b7280;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .tasks-list {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-height: 400px;
+        }
+
+        .task-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 1rem;
+            cursor: move;
+            transition: all 0.2s;
+        }
+
+        .task-card:hover {
+            background: #f3f4f6;
+            border-color: #10B981;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .task-card.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .task-title {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.25rem;
+        }
+
+        .task-priority {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .task-meta {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.5rem;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .task-description {
+            color: #4b5563;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+
+        .flash-messages {
+            margin: 1rem 0;
+        }
+
+        .flash-message {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flash-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+
+        .flash-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #dc2626;
+        }
+
+        .edit-form {
+            display: none;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .edit-form.active {
+            display: block;
+        }
+
+        .edit-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .edit-form-grid .form-group {
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            font-style: italic;
+            min-height: 200px;
+        }
+
+        .dropzone {
+            border: 2px dashed #10B981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        @media (max-width: 1024px) {
+            .kanban-board {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .controls-section {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .edit-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">✅ Oppgaver</div>
+                <div class="user-info">
+                    <span>{{ user_name }}</span>
+                    <a href="{{ url_for('dashboard.index') }}" style="color: white; text-decoration: none;">← Dashboard</a>
+                    <a href="{{ url_for('auth.logout') }}" style="color: white; text-decoration: none;">Logg ut</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Flash messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <div class="main-content">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1 class="page-title">✅ Oppgaver</h1>
+                <div class="breadcrumb">
+                    <a href="{{ url_for('dashboard.index') }}">Dashboard</a> / Oppgaver
+                </div>
+            </div>
+
+            <!-- Controls Section -->
+            <div class="controls-section">
+                <!-- Create Task Section -->
+                <div class="create-task-section">
+                    <h3 style="margin-bottom: 1rem;">➕ Ny oppgave</h3>
+                    <form method="POST" action="{{ url_for('tasks.create_task') }}">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="title">Tittel *</label>
+                                <input type="text" id="title" name="title" required maxlength="200" placeholder="Hva skal gjøres?">
+                            </div>
+                            <div class="form-group">
+                                <label for="priority">Prioritet</label>
+                                <select id="priority" name="priority">
+                                    {% for priority_key, priority_name in task_priorities.items() %}
+                                        <option value="{{ priority_key }}">{{ priority_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="assigned_to">Tildelt til</label>
+                                <input type="text" id="assigned_to" name="assigned_to" maxlength="100" placeholder="Navn på person">
+                            </div>
+                            <button type="submit" class="btn">✅ Opprett</button>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="description">Beskrivelse</label>
+                            <textarea id="description" name="description" maxlength="1000" placeholder="Legg til detaljer..." style="min-height: 60px;"></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Statistics Section -->
+                <div class="stats-section">
+                    <h3 style="margin-bottom: 1rem;">📊 Statistikk</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-number">{{ stats.total }}</div>
+                            <div class="stat-label">Totalt</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">{{ stats.todo }}</div>
+                            <div class="stat-label">Å gjøre</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">{{ stats.in_progress }}</div>
+                            <div class="stat-label">Pågår</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">{{ stats.done }}</div>
+                            <div class="stat-label">Ferdig</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kanban Board -->
+            <div class="kanban-board">
+                {% for status_key, status_name in task_statuses.items() %}
+                <div class="kanban-column" data-status="{{ status_key }}">
+                    <div class="column-header">
+                        <h3 class="column-title">{{ status_name }}</h3>
+                        <span class="column-count">{{ tasks_by_status[status_key]|length }}</span>
+                    </div>
+                    <div class="tasks-list" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        {% if tasks_by_status[status_key] %}
+                            {% for task in tasks_by_status[status_key] %}
+                            <div class="task-card" draggable="true" ondragstart="drag(event)" data-task-id="{{ task.id }}">
+                                <div class="task-header">
+                                    <div>
+                                        <h4 class="task-title">{{ task.title }}</h4>
+                                        <div class="task-priority" style="background: {{ priority_color(task.priority) }}20; color: {{ priority_color(task.priority) }};">
+                                            {{ priority_icon(task.priority) }} {{ task_priorities[task.priority] }}
+                                        </div>
+                                    </div>
+                                    <div class="task-actions">
+                                        <button onclick="toggleEdit({{ task.id }})" class="btn btn-small">✏️</button>
+                                        <form method="POST" action="{{ url_for('tasks.delete_task', task_id=task.id) }}"
+                                              style="display: inline;"
+                                              onsubmit="return confirm('Er du sikker på at du vil slette denne oppgaven?')">
+                                            <button type="submit" class="btn btn-danger btn-small">🗑️</button>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                {% if task.description %}
+                                <div class="task-description">{{ task.description }}</div>
+                                {% endif %}
+
+                                <div class="task-meta">
+                                    {% if task.assigned_to %}👤 {{ task.assigned_to }}<br>{% endif %}
+                                    {% if task.due_date %}📅 {{ task.due_date }}<br>{% endif %}
+                                    🕒 {{ task.created_at[:16] }} av {{ task.created_by }}
+                                </div>
+
+                                <!-- Edit Form -->
+                                <div class="edit-form" id="edit-form-{{ task.id }}">
+                                    <form method="POST" action="{{ url_for('tasks.edit_task', task_id=task.id) }}">
+                                        <div class="edit-form-grid">
+                                            <div class="form-group">
+                                                <label>Tittel *</label>
+                                                <input type="text" name="title" value="{{ task.title }}" required maxlength="200">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Prioritet</label>
+                                                <select name="priority">
+                                                    {% for priority_key, priority_name in task_priorities.items() %}
+                                                        <option value="{{ priority_key }}" {% if task.priority == priority_key %}selected{% endif %}>
+                                                            {{ priority_name }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Tildelt til</label>
+                                                <input type="text" name="assigned_to" value="{{ task.assigned_to or '' }}" maxlength="100">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Forfallsdato</label>
+                                                <input type="date" name="due_date" value="{{ task.due_date or '' }}">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Beskrivelse</label>
+                                            <textarea name="description" maxlength="1000" style="min-height: 60px;">{{ task.description or '' }}</textarea>
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem;">
+                                            <button type="submit" class="btn btn-small">💾 Lagre</button>
+                                            <button type="button" onclick="toggleEdit({{ task.id }})" class="btn btn-small" style="background: #6b7280;">❌ Avbryt</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-column">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">
+                                    {% if status_key == 'todo' %}📋{% elif status_key == 'in_progress' %}⏳{% else %}✅{% endif %}
+                                </div>
+                                <div>Ingen oppgaver her</div>
+                                {% if status_key == 'todo' %}
+                                    <div style="font-size: 0.8rem; margin-top: 0.5rem;">Opprett en ny oppgave ovenfor!</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let draggedElement = null;
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+            ev.currentTarget.classList.add('dropzone');
+        }
+
+        function drag(ev) {
+            draggedElement = ev.target;
+            ev.target.classList.add('dragging');
+            ev.dataTransfer.setData("text", ev.target.dataset.taskId);
+
+            // Remove dropzone class from all columns when drag starts
+            document.querySelectorAll('.tasks-list').forEach(list => {
+                list.classList.remove('dropzone');
+            });
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+            ev.currentTarget.classList.remove('dropzone');
+
+            const taskId = ev.dataTransfer.getData("text");
+            const newStatus = ev.currentTarget.closest('.kanban-column').dataset.status;
+            const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
+
+            if (taskCard && draggedElement) {
+                // Update UI immediately
+                ev.currentTarget.appendChild(taskCard);
+                taskCard.classList.remove('dragging');
+
+                // Update column counts
+                updateColumnCounts();
+
+                // Send update to server
+                updateTaskStatus(taskId, newStatus);
+            }
+
+            draggedElement = null;
+        }
+
+        function updateTaskStatus(taskId, newStatus) {
+            fetch(`/tasks/update_status/${taskId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `status=${newStatus}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== 'success') {
+                    console.error('Failed to update task status:', data.error);
+                    // Reload page on error to restore correct state
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error updating task status:', error);
+                // Reload page on error to restore correct state
+                location.reload();
+            });
+        }
+
+        function updateColumnCounts() {
+            document.querySelectorAll('.kanban-column').forEach(column => {
+                const count = column.querySelectorAll('.task-card').length;
+                const countElement = column.querySelector('.column-count');
+                if (countElement) {
+                    countElement.textContent = count;
+                }
+            });
+        }
+
+        function toggleEdit(taskId) {
+            const editForm = document.getElementById(`edit-form-${taskId}`);
+            editForm.classList.toggle('active');
+        }
+
+        // Clean up drag classes when drag ends
+        document.addEventListener('dragend', function(e) {
+            if (e.target.classList.contains('task-card')) {
+                e.target.classList.remove('dragging');
+            }
+            // Remove all dropzone classes
+            document.querySelectorAll('.tasks-list').forEach(list => {
+                list.classList.remove('dropzone');
+            });
+        });
+
+        // Remove dropzone class when dragging leaves
+        document.addEventListener('dragleave', function(e) {
+            if (e.target.classList.contains('tasks-list')) {
+                e.target.classList.remove('dropzone');
+            }
+        });
+    </script>
+</body>
+</html>

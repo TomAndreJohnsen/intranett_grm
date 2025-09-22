@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - GRM Intranett</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .main-content {
+            padding: 2rem 0;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 2rem;
+        }
+
+        .feed-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .widget {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .widget h3 {
+            margin-bottom: 1rem;
+            color: #374151;
+            font-size: 1.1rem;
+        }
+
+        .post-form {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .post-form textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        .post-form button {
+            background: #10B981;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        .post-form button:hover {
+            background: #059669;
+        }
+
+        .posts {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .post {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .post:last-child {
+            border-bottom: none;
+        }
+
+        .post-header {
+            display: flex;
+            justify-content: between;
+            margin-bottom: 0.5rem;
+        }
+
+        .post-author {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .post-time {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .post-content {
+            margin-top: 0.5rem;
+            line-height: 1.6;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0.75rem;
+            background: #f3f4f6;
+            border-radius: 6px;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #10B981;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+
+        .event-item, .task-item {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.875rem;
+        }
+
+        .event-item:last-child, .task-item:last-child {
+            border-bottom: none;
+        }
+
+        .event-date, .task-status {
+            color: #10B981;
+            font-weight: 500;
+        }
+
+        .flash-messages {
+            margin: 1rem 0;
+        }
+
+        .flash-message {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flash-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+
+        .flash-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #dc2626;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: #6b7280;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn:hover {
+            background: #4b5563;
+        }
+
+        .week-status {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            color: #1e40af;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">🏢 GRM Intranett</div>
+                <div class="user-info">
+                    <span>Velkommen, {{ user_name }}!</span>
+                    <a href="{{ url_for('auth.logout') }}" style="color: white; text-decoration: none;">Logg ut</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Flash messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- Week 3 Status -->
+        <div class="week-status">
+            <strong>🎉 Uke 3 Status - Database & Dashboard Implementert!</strong>
+            <br>✅ Database helpers ✅ Ekte data ✅ Dashboard widgets ✅ Post creation
+        </div>
+
+        <div class="main-content">
+            <!-- Main Feed -->
+            <div class="feed-section">
+                <!-- Post Creation Form -->
+                <div class="post-form">
+                    <h2 style="margin-bottom: 1rem;">Del noe med teamet</h2>
+                    <form method="POST" action="{{ url_for('dashboard.create_post_route') }}">
+                        <textarea name="content" placeholder="Hva tenker du på?" required maxlength="1000"></textarea>
+                        <button type="submit">📝 Del innlegg</button>
+                    </form>
+                </div>
+
+                <!-- Posts Feed -->
+                <div class="posts">
+                    {% if posts %}
+                        {% for post in posts %}
+                        <div class="post">
+                            <div class="post-header">
+                                <span class="post-author">{{ post.author_name }}</span>
+                                <span class="post-time">{{ post.created_at }}</span>
+                            </div>
+                            <div class="post-content">{{ post.content }}</div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="post">
+                            <p style="text-align: center; color: #6b7280; padding: 2rem;">
+                                Ingen innlegg ennå. Vær den første til å dele noe! 💬
+                            </p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Statistics Widget -->
+                <div class="widget">
+                    <h3>📊 Statistikk</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-number">{{ stats.total_posts }}</div>
+                            <div class="stat-label">Innlegg</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">{{ stats.total_events }}</div>
+                            <div class="stat-label">Hendelser</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">{{ stats.total_tasks }}</div>
+                            <div class="stat-label">Oppgaver</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">{{ stats.total_documents }}</div>
+                            <div class="stat-label">Dokumenter</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Events Widget -->
+                <div class="widget">
+                    <h3>📅 Kommende hendelser</h3>
+                    {% if upcoming_events %}
+                        {% for event in upcoming_events %}
+                        <div class="event-item">
+                            <div class="event-date">{{ event.event_date }}</div>
+                            <div>{{ event.title }}</div>
+                            {% if event.location %}
+                                <div style="color: #6b7280; font-size: 0.8rem;">📍 {{ event.location }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p style="color: #6b7280;">Ingen kommende hendelser</p>
+                    {% endif %}
+                    <a href="/calendar" class="btn">Se kalender</a>
+                </div>
+
+                <!-- Tasks Summary Widget -->
+                <div class="widget">
+                    <h3>✅ Oppgaver</h3>
+                    <div class="task-item">
+                        <span class="task-status">📋 Å gjøre:</span> {{ task_summary.todo }}
+                    </div>
+                    <div class="task-item">
+                        <span class="task-status">⏳ Pågår:</span> {{ task_summary.in_progress }}
+                    </div>
+                    <div class="task-item">
+                        <span class="task-status">✅ Ferdig:</span> {{ task_summary.done }}
+                    </div>
+                    <a href="/tasks" class="btn">Se alle oppgaver</a>
+                </div>
+
+                <!-- Quick Links Widget -->
+                <div class="widget">
+                    <h3>🔗 Hurtiglenker</h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <a href="/documents" class="btn">📁 Dokumenter</a>
+                        <a href="/calendar" class="btn">📅 Kalender</a>
+                        <a href="/tasks" class="btn">✅ Oppgaver</a>
+                        <a href="/test" class="btn">🧪 Test logging</a>
+                    </div>
+                </div>
+
+                <!-- Development Info -->
+                <div class="widget" style="border: 2px dashed #10B981;">
+                    <h3>🚀 Development Status</h3>
+                    <p style="font-size: 0.8rem; color: #6b7280;">
+                        <strong>Uke 3 fullført!</strong><br>
+                        ✅ Database helpers<br>
+                        ✅ Ekte dashboard data<br>
+                        ✅ Post creation<br>
+                        ✅ Widgets med live data<br><br>
+                        <strong>Neste:</strong> Documents, Calendar, Tasks blueprints (Uke 4)
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

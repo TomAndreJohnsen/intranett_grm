@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Innlogging - GRM Intranett</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #10B981, #059669);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .logo {
+            max-width: 150px;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            color: #1F2937;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #6B7280;
+            margin-bottom: 2rem;
+        }
+        .login-btn {
+            background: #0078D4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px 0;
+            transition: background 0.3s;
+        }
+        .login-btn:hover {
+            background: #106EBE;
+        }
+        .demo-notice {
+            background: #FEF3C7;
+            border: 1px solid #F59E0B;
+            color: #92400E;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        .flash-messages {
+            margin-bottom: 1rem;
+        }
+        .flash-message {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .flash-success {
+            background: #D1FAE5;
+            color: #065F46;
+            border: 1px solid #10B981;
+        }
+        .flash-error {
+            background: #FEE2E2;
+            color: #991B1B;
+            border: 1px solid #DC2626;
+        }
+        .flash-info {
+            background: #DBEAFE;
+            color: #1E40AF;
+            border: 1px solid #3B82F6;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="GRM Logo" class="logo">
+        <h1>GRM Intranett</h1>
+        <p class="subtitle">Logg inn for å få tilgang til intranett</p>
+
+        <!-- Flash messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        {% if auth_url %}
+            <!-- Microsoft Login -->
+            <a href="{{ auth_url }}" class="login-btn">
+                🔐 Logg inn med Microsoft
+            </a>
+        {% else %}
+            <!-- Demo Mode -->
+            <div class="demo-notice">
+                <strong>Demo Modus</strong><br>
+                Microsoft authentication er ikke konfigurert.<br>
+                Klikk under for å logge inn som demo bruker.
+            </div>
+            <a href="{{ url_for('auth.login') }}" class="login-btn">
+                🧪 Demo Innlogging
+            </a>
+        {% endif %}
+
+        <p style="margin-top: 2rem; color: #6B7280; font-size: 0.9rem;">
+            Status:
+            {% if auth_url %}
+                Microsoft authentication aktiv
+            {% else %}
+                Demo modus (MS auth ikke konfigurert)
+            {% endif %}
+        </p>
+    </div>
+</body>
+</html>

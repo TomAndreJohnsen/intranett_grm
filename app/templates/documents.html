@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+
+{% block title %}Dokumenter - GRM Intranett{% endblock %}
+
+{% block content %}
+<div class="documents-container">
+    <div class="documents-header">
+        <h1>Dokumentbank</h1>
+        <p>Organiser og del dokumenter med teamet</p>
+    </div>
+
+    <!-- Folder Navigation -->
+    <div class="folder-navigation">
+        <div class="folders-grid">
+            {% for folder in folders %}
+            <a href="{{ url_for('documents', folder=folder) }}" class="folder-card {% if current_folder == folder %}active{% endif %}">
+                <div class="folder-icon">
+                    {% if folder == 'salg' %}
+                        <i class="fas fa-chart-line"></i>
+                    {% elif folder == 'verksted' %}
+                        <i class="fas fa-tools"></i>
+                    {% elif folder == 'hms' %}
+                        <i class="fas fa-hard-hat"></i>
+                    {% elif folder == 'it' %}
+                        <i class="fas fa-laptop-code"></i>
+                    {% endif %}
+                </div>
+                <div class="folder-info">
+                    <h3>{% if folder == 'it' %}IT{% elif folder == 'hms' %}HMS{% else %}{{ folder.title() }}{% endif %}</h3>
+                    <p>{% if folder == 'it' %}IT{% elif folder == 'hms' %}HMS{% else %}{{ folder|capitalize }}{% endif %} dokumenter</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if current_folder %}
+    <div class="documents-content">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb">
+            <a href="{{ url_for('documents') }}">Dokumenter</a>
+            <i class="fas fa-chevron-right"></i>
+            <span>{{ current_folder.title() }}</span>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <div class="upload-card">
+                <form method="POST" action="{{ url_for('upload_document') }}" enctype="multipart/form-data" class="upload-form">
+                    <input type="hidden" name="folder" value="{{ current_folder }}">
+                    <div class="upload-area">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Dra og slipp filer her eller <label for="file-input" class="file-label">bla gjennom</label></p>
+                        <input type="file" id="file-input" name="file" style="display: none;" required>
+                    </div>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-upload"></i>
+                        Last opp
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Documents List -->
+        <div class="documents-list">
+            <div class="list-header">
+                <h3>Filer i {{ current_folder.title() }}</h3>
+                <div class="list-actions">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Søk etter filer..." id="searchInput">
+                    </div>
+                </div>
+            </div>
+
+            {% if documents %}
+            <div class="documents-table">
+                <div class="table-header">
+                    <div class="col-name">Filnavn</div>
+                    <div class="col-date">Opplastet</div>
+                    <div class="col-user">Av</div>
+                    <div class="col-actions">Handlinger</div>
+                </div>
+
+                {% for doc in documents %}
+                <div class="table-row" data-filename="{{ doc[1]|lower }}">
+                    <div class="col-name">
+                        <div class="file-info">
+                            <i class="fas fa-file{% if doc[1].endswith('.pdf') %}-pdf{% elif doc[1].endswith(('.jpg', '.jpeg', '.png', '.gif')) %}-image{% elif doc[1].endswith(('.doc', '.docx')) %}-word{% elif doc[1].endswith(('.xls', '.xlsx')) %}-excel{% endif %}"></i>
+                            <span>{{ doc[1] }}</span>
+                        </div>
+                    </div>
+                    <div class="col-date">{{ doc[3] }}</div>
+                    <div class="col-user">{{ doc[4] }}</div>
+                    <div class="col-actions">
+                        <a href="{{ url_for('download_document', doc_id=doc[0]) }}" class="btn-action download">
+                            <i class="fas fa-download"></i>
+                        </a>
+                        {% if user and user.is_admin %}
+                        <button class="btn-action delete" onclick="deleteDocument({{ doc[0] }})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-folder-open"></i>
+                <h3>Ingen filer i {{ current_folder.title() }}</h3>
+                <p>Last opp den første filen til denne mappen</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="folder-selection">
+        <div class="selection-message">
+            <i class="fas fa-folder"></i>
+            <h3>Velg en mappe</h3>
+            <p>Klikk på en mappe ovenfor for å se og administrere dokumenter</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.documents-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.documents-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.documents-header h1 {
+    font-size: 2.5rem;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.documents-header p {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+
+.folder-navigation {
+    margin-bottom: 40px;
+}
+
+.folders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.folder-card {
+    background: var(--bg-primary);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.folder-card:hover {
+    border-color: var(--primary-green);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.folder-card.active {
+    border-color: var(--primary-green);
+    background: var(--light-green);
+}
+
+.folder-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+}
+
+.folder-info h3 {
+    margin: 0 0 4px 0;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+}
+
+.folder-info p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    font-size: 14px;
+}
+
+.breadcrumb a {
+    color: var(--primary-green);
+    text-decoration: none;
+}
+
+.breadcrumb i {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.upload-section {
+    margin-bottom: 32px;
+}
+
+.upload-card {
+    background: var(--bg-primary);
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+}
+
+.upload-area {
+    margin-bottom: 20px;
+}
+
+.upload-area i {
+    font-size: 48px;
+    color: var(--primary-green);
+    margin-bottom: 16px;
+}
+
+.upload-area p {
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.file-label {
+    color: var(--primary-green);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.documents-list {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.list-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.list-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.search-box {
+    position: relative;
+    width: 300px;
+}
+
+.search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+}
+
+.search-box input {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.documents-table {
+    width: 100%;
+}
+
+.table-header, .table-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 120px;
+    gap: 16px;
+    padding: 16px 20px;
+    align-items: center;
+}
+
+.table-header {
+    background: var(--bg-tertiary);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.table-row {
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s ease;
+}
+
+.table-row:hover {
+    background: var(--bg-tertiary);
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.file-info i {
+    color: var(--primary-green);
+    font-size: 16px;
+}
+
+.col-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-action {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.btn-action.download {
+    background: var(--light-green);
+    color: var(--dark-green);
+}
+
+.btn-action.download:hover {
+    background: var(--primary-green);
+    color: white;
+}
+
+.btn-action.delete {
+    background: var(--light-red);
+    color: var(--dark-red);
+}
+
+.btn-action.delete:hover {
+    background: var(--primary-red);
+    color: white;
+}
+
+.empty-state, .folder-selection .selection-message {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+}
+
+.empty-state i, .selection-message i {
+    font-size: 64px;
+    margin-bottom: 16px;
+    color: var(--border-color);
+}
+
+.empty-state h3, .selection-message h3 {
+    margin: 0 0 8px 0;
+    color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+    .folders-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .table-header, .table-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .search-box {
+        width: 200px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // File input change handler
+    const fileInput = document.getElementById('file-input');
+    const uploadArea = document.querySelector('.upload-area');
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const fileName = this.files[0] ? this.files[0].name : '';
+            if (fileName) {
+                uploadArea.querySelector('p').innerHTML = `Valgt fil: <strong>${fileName}</strong>`;
+            }
+        });
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderColor = 'var(--primary-green)';
+            this.style.backgroundColor = 'var(--light-green)';
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.style.borderColor = 'var(--border-color)';
+            this.style.backgroundColor = 'transparent';
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.borderColor = 'var(--border-color)';
+            this.style.backgroundColor = 'transparent';
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                this.querySelector('p').innerHTML = `Valgt fil: <strong>${files[0].name}</strong>`;
+            }
+        });
+    }
+
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = document.querySelectorAll('.table-row');
+
+            rows.forEach(row => {
+                const filename = row.getAttribute('data-filename');
+                if (filename.includes(searchTerm)) {
+                    row.style.display = 'grid';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
+});
+
+function deleteDocument(docId) {
+    if (confirm('Er du sikker på at du vil slette dette dokumentet?')) {
+        // Add delete functionality here
+        console.log('Delete document:', docId);
+        alert('Slettfunksjon ikke implementert ennå');
+    }
+}
+</script>
+{% endblock %}

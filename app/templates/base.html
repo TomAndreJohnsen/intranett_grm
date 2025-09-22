@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}GRM Intranett{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    {% if not user %}
+    <!-- Login section - shown when user is NOT logged in -->
+    <div class="login-container">
+        <div class="login-box">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="GRM Logo" class="logo">
+                <h1>GRM Intranett</h1>
+            </div>
+            <div class="login-content">
+                <h2>Velkommen til GRM Intranett</h2>
+                <p>Logg inn med din Office 365-konto for å få tilgang til intranettet.</p>
+                <a href="/auth/login" class="login-btn">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Logg inn med Office 365
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Navigation - shown when user IS logged in -->
+    <nav class="topbar">
+        <div class="topbar-content">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="GRM Logo" class="logo">
+            </div>
+            <div class="nav-menu">
+                <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('documents') }}" class="nav-item {% if request.endpoint == 'documents' %}active{% endif %}">
+                    <i class="fas fa-folder"></i>
+                    <span>Dokumenter</span>
+                </a>
+                <a href="{{ url_for('calendar') }}" class="nav-item {% if request.endpoint == 'calendar' %}active{% endif %}">
+                    <i class="fas fa-calendar"></i>
+                    <span>Kalender</span>
+                </a>
+                <a href="{{ url_for('tasks') }}" class="nav-item {% if request.endpoint == 'tasks' %}active{% endif %}">
+                    <i class="fas fa-tasks"></i>
+                    <span>Oppgaver</span>
+                </a>
+                <a href="{{ url_for('suppliers') }}" class="nav-item {% if request.endpoint == 'suppliers' %}active{% endif %}">
+                    <i class="fas fa-key"></i>
+                    <span>Leverandør</span>
+                </a>
+                {% if user.is_admin %}
+                <!-- Admin link - shown only for admin users -->
+                <a href="#" class="nav-item">
+                    <i class="fas fa-cog"></i>
+                    <span>Innstillinger</span>
+                </a>
+                {% endif %}
+            </div>
+            <div class="user-section">
+                <div class="user-info">
+                    <span class="user-name">{{ user.displayName or user.mail }}</span>
+                    <div class="user-dropdown">
+                        <button class="user-menu-btn">
+                            <i class="fas fa-user-circle"></i>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="#"><i class="fas fa-user"></i> Profil</a>
+                            <div class="user-email">{{ user.mail }}</div>
+                            {% if user.jobTitle %}
+                            <div class="user-title">{{ user.jobTitle }}</div>
+                            {% endif %}
+                            <hr>
+                            <a href="#" onclick="logoutUser()"><i class="fas fa-sign-out-alt"></i> Logg ut</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="main-content">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for message in messages %}
+                        <div class="alert alert-info">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

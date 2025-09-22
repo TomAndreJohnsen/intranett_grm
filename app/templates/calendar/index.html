@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalender - GRM Intranett</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .main-content {
+            padding: 2rem 0;
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .breadcrumb {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .breadcrumb a {
+            color: #10B981;
+            text-decoration: none;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 2rem;
+        }
+
+        .main-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .create-event-section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn {
+            background: #10B981;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn-small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .events-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .events-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            transition: background 0.2s;
+        }
+
+        .event-item:hover {
+            background: #f9fafb;
+        }
+
+        .event-item:last-child {
+            border-bottom: none;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .event-title {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.25rem;
+        }
+
+        .event-meta {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .event-type {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .event-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .event-description {
+            margin-top: 0.5rem;
+            color: #4b5563;
+            line-height: 1.5;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .widget {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .widget h3 {
+            margin-bottom: 1rem;
+            color: #374151;
+            font-size: 1.1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: #f3f4f6;
+            border-radius: 6px;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #10B981;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+
+        .event-types {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .event-type-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .flash-messages {
+            margin: 1rem 0;
+        }
+
+        .flash-message {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flash-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+
+        .flash-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #dc2626;
+        }
+
+        .edit-form {
+            display: none;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .edit-form.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .event-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">📅 Kalender</div>
+                <div class="user-info">
+                    <span>{{ user_name }}</span>
+                    <a href="{{ url_for('dashboard.index') }}" style="color: white; text-decoration: none;">← Dashboard</a>
+                    <a href="{{ url_for('auth.logout') }}" style="color: white; text-decoration: none;">Logg ut</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Flash messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <div class="main-content">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1 class="page-title">📅 Kalender</h1>
+                <div class="breadcrumb">
+                    <a href="{{ url_for('dashboard.index') }}">Dashboard</a> / Kalender
+                </div>
+            </div>
+
+            <div class="content-grid">
+                <!-- Main Content -->
+                <div class="main-section">
+                    <!-- Create Event Section -->
+                    <div class="create-event-section">
+                        <h3 style="margin-bottom: 1rem;">📝 Ny hendelse</h3>
+                        <form method="POST" action="{{ url_for('calendar.create_event') }}">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="title">Tittel *</label>
+                                    <input type="text" id="title" name="title" required maxlength="200">
+                                </div>
+                                <div class="form-group">
+                                    <label for="event_type">Type</label>
+                                    <select id="event_type" name="event_type">
+                                        <option value="meeting">👥 Møte</option>
+                                        <option value="deadline">⚡ Deadline</option>
+                                        <option value="birthday">🎂 Bursdag</option>
+                                        <option value="holiday">🏖️ Ferie</option>
+                                        <option value="training">📚 Opplæring</option>
+                                        <option value="presentation">📊 Presentasjon</option>
+                                        <option value="other">📅 Annet</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="event_date">Dato *</label>
+                                    <input type="date" id="event_date" name="event_date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="event_time">Klokkeslett</label>
+                                    <input type="time" id="event_time" name="event_time">
+                                </div>
+                                <div class="form-group">
+                                    <label for="location">Sted</label>
+                                    <input type="text" id="location" name="location" maxlength="200">
+                                </div>
+                                <div class="form-group full-width">
+                                    <label for="description">Beskrivelse</label>
+                                    <textarea id="description" name="description" maxlength="1000" placeholder="Legg til detaljer om hendelsen..."></textarea>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn">📅 Opprett hendelse</button>
+                        </form>
+                    </div>
+
+                    <!-- Events List -->
+                    <div class="events-section">
+                        <div class="section-header">
+                            <h2 class="section-title">Kommende hendelser ({{ events|length }})</h2>
+                        </div>
+
+                        {% if events %}
+                            <div class="events-list">
+                                {% for event in events %}
+                                <div class="event-item">
+                                    <div class="event-header">
+                                        <div>
+                                            <h4 class="event-title">{{ event.title }}</h4>
+                                            <div class="event-meta">
+                                                <span style="color: {{ event_color(event.event_type) }};">
+                                                    {{ event_icon(event.event_type) }}
+                                                    {{ event.event_date }}
+                                                    {% if event.event_time %} kl. {{ event.event_time }}{% endif %}
+                                                </span>
+                                                {% if event.location %}
+                                                    <br>📍 {{ event.location }}
+                                                {% endif %}
+                                                <br>Opprettet av {{ event.created_by }}
+                                            </div>
+                                        </div>
+                                        <div class="event-actions">
+                                            <button onclick="toggleEdit({{ event.id }})" class="btn btn-small">✏️ Rediger</button>
+                                            <form method="POST" action="{{ url_for('calendar.delete_event', event_id=event.id) }}"
+                                                  style="display: inline;"
+                                                  onsubmit="return confirm('Er du sikker på at du vil slette denne hendelsen?')">
+                                                <button type="submit" class="btn btn-danger btn-small">🗑️ Slett</button>
+                                            </form>
+                                        </div>
+                                    </div>
+
+                                    {% if event.description %}
+                                    <div class="event-description">{{ event.description }}</div>
+                                    {% endif %}
+
+                                    <!-- Edit Form -->
+                                    <div class="edit-form" id="edit-form-{{ event.id }}">
+                                        <form method="POST" action="{{ url_for('calendar.edit_event', event_id=event.id) }}">
+                                            <div class="form-grid">
+                                                <div class="form-group">
+                                                    <label>Tittel *</label>
+                                                    <input type="text" name="title" value="{{ event.title }}" required maxlength="200">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label>Type</label>
+                                                    <select name="event_type">
+                                                        <option value="meeting" {% if event.event_type == 'meeting' %}selected{% endif %}>👥 Møte</option>
+                                                        <option value="deadline" {% if event.event_type == 'deadline' %}selected{% endif %}>⚡ Deadline</option>
+                                                        <option value="birthday" {% if event.event_type == 'birthday' %}selected{% endif %}>🎂 Bursdag</option>
+                                                        <option value="holiday" {% if event.event_type == 'holiday' %}selected{% endif %}>🏖️ Ferie</option>
+                                                        <option value="training" {% if event.event_type == 'training' %}selected{% endif %}>📚 Opplæring</option>
+                                                        <option value="presentation" {% if event.event_type == 'presentation' %}selected{% endif %}>📊 Presentasjon</option>
+                                                        <option value="other" {% if event.event_type == 'other' %}selected{% endif %}>📅 Annet</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label>Dato *</label>
+                                                    <input type="date" name="event_date" value="{{ event.event_date }}" required>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label>Klokkeslett</label>
+                                                    <input type="time" name="event_time" value="{{ event.event_time or '' }}">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label>Sted</label>
+                                                    <input type="text" name="location" value="{{ event.location or '' }}" maxlength="200">
+                                                </div>
+                                                <div class="form-group full-width">
+                                                    <label>Beskrivelse</label>
+                                                    <textarea name="description" maxlength="1000">{{ event.description or '' }}</textarea>
+                                                </div>
+                                            </div>
+                                            <div style="display: flex; gap: 0.5rem;">
+                                                <button type="submit" class="btn btn-small">💾 Lagre</button>
+                                                <button type="button" onclick="toggleEdit({{ event.id }})" class="btn btn-small" style="background: #6b7280;">❌ Avbryt</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📅</div>
+                                <h3>Ingen hendelser funnet</h3>
+                                <p>Det er ingen kommende hendelser registrert.</p>
+                                <p style="margin-top: 0.5rem;">Opprett den første hendelsen ved å bruke skjemaet ovenfor! ✨</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="sidebar">
+                    <!-- Statistics Widget -->
+                    <div class="widget">
+                        <h3>📊 Statistikk</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-number">{{ stats.total_events }}</div>
+                                <div class="stat-label">Totalt</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number">{{ stats.upcoming_events }}</div>
+                                <div class="stat-label">Kommende</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Event Types Widget -->
+                    <div class="widget">
+                        <h3>🏷️ Hendelsestyper</h3>
+                        <div class="event-types">
+                            <div class="event-type-item" style="background: rgba(16, 185, 129, 0.1);">
+                                👥 Møte
+                            </div>
+                            <div class="event-type-item" style="background: rgba(220, 38, 38, 0.1);">
+                                ⚡ Deadline
+                            </div>
+                            <div class="event-type-item" style="background: rgba(245, 158, 11, 0.1);">
+                                🎂 Bursdag
+                            </div>
+                            <div class="event-type-item" style="background: rgba(59, 130, 246, 0.1);">
+                                🏖️ Ferie
+                            </div>
+                            <div class="event-type-item" style="background: rgba(139, 92, 246, 0.1);">
+                                📚 Opplæring
+                            </div>
+                            <div class="event-type-item" style="background: rgba(6, 182, 212, 0.1);">
+                                📊 Presentasjon
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Links Widget -->
+                    <div class="widget">
+                        <h3>🔗 Hurtiglenker</h3>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <a href="{{ url_for('dashboard.index') }}" class="btn" style="background: #6b7280;">🏠 Dashboard</a>
+                            <a href="/documents" class="btn" style="background: #6b7280;">📁 Dokumenter</a>
+                            <a href="/tasks" class="btn" style="background: #6b7280;">✅ Oppgaver</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleEdit(eventId) {
+            const editForm = document.getElementById(`edit-form-${eventId}`);
+            editForm.classList.toggle('active');
+        }
+
+        // Set default date to today
+        document.getElementById('event_date').valueAsDate = new Date();
+    </script>
+</body>
+</html>
