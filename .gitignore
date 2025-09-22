@@ -1,0 +1,18 @@
+# Ignorer .env uansett hvor den ligger
+.env
+**/.env
+
+# Virtuelle miljøer
+venv/
+*/venv/
+
+# __pycache__-mapper
+__pycache__/
+**/__pycache__/
+
+# Database-filer (hvis du vil)
+*.db
+
+# OS-spesifikke filer
+.DS_Store
+Thumbs.db
