@@ -176,6 +176,20 @@ def init_db():
             )
         ''')
 
+        # Suppliers table
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS suppliers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                username TEXT,
+                password TEXT,
+                website TEXT,
+                created_by TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         db.commit()
         logger.info("Database tables created successfully")
 
@@ -283,6 +297,47 @@ def _add_sample_data():
              task['priority'], task['department'], task['created_by'])
         )
 
+    # Sample suppliers
+    sample_suppliers = [
+        {
+            'name': 'Autoparts AS',
+            'username': 'grm_kunde',
+            'password': 'SecurePass123!',
+            'website': 'https://autoparts.no',
+            'created_by': 'Admin'
+        },
+        {
+            'name': 'Bilgrossisten',
+            'username': 'grm_account',
+            'password': 'BilPass2024',
+            'website': 'https://bilgrossisten.no',
+            'created_by': 'Admin'
+        },
+        {
+            'name': 'Euromaster Norge',
+            'username': 'grm.kunde',
+            'password': 'EuroM@ster789',
+            'website': 'https://euromaster.no',
+            'created_by': 'Admin'
+        },
+        {
+            'name': 'Mekonomen',
+            'username': 'grm_bedrift',
+            'password': 'MekoPass456!',
+            'website': 'https://mekonomen.no',
+            'created_by': 'Admin'
+        }
+    ]
+
+    for supplier in sample_suppliers:
+        execute_db(
+            '''INSERT INTO suppliers
+               (name, username, password, website, created_by)
+               VALUES (?, ?, ?, ?, ?)''',
+            (supplier['name'], supplier['username'], supplier['password'],
+             supplier['website'], supplier['created_by'])
+        )
+
     logger.info("Sample data added successfully")
 
 # Helper functions for specific operations
@@ -343,3 +398,48 @@ def get_user_stats() -> Dict[str, Any]:
 
     logger.debug(f"User stats: {stats}")
     return stats
+
+def get_suppliers() -> List[Dict]:
+    """Hent alle leverandører sortert alfabetisk"""
+    logger.debug("Fetching suppliers")
+    return query_db(
+        'SELECT * FROM suppliers ORDER BY name ASC'
+    )
+
+def create_supplier(name: str, username: str, password: str, website: str, created_by: str) -> Optional[int]:
+    """Opprett ny leverandør"""
+    logger.info(f"Creating supplier: {name}")
+    return execute_db(
+        '''INSERT INTO suppliers (name, username, password, website, created_by)
+           VALUES (?, ?, ?, ?, ?)''',
+        (name, username, password, website, created_by)
+    )
+
+def update_supplier(supplier_id: int, name: str, username: str, password: str, website: str) -> bool:
+    """Oppdater leverandør"""
+    logger.info(f"Updating supplier ID: {supplier_id}")
+    result = execute_db(
+        '''UPDATE suppliers
+           SET name = ?, username = ?, password = ?, website = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?''',
+        (name, username, password, website, supplier_id)
+    )
+    return result is not None and result > 0
+
+def delete_supplier(supplier_id: int) -> bool:
+    """Slett leverandør"""
+    logger.info(f"Deleting supplier ID: {supplier_id}")
+    result = execute_db(
+        'DELETE FROM suppliers WHERE id = ?',
+        (supplier_id,)
+    )
+    return result is not None and result > 0
+
+def get_supplier_by_id(supplier_id: int) -> Optional[Dict]:
+    """Hent leverandør etter ID"""
+    logger.debug(f"Fetching supplier ID: {supplier_id}")
+    return query_db(
+        'SELECT * FROM suppliers WHERE id = ?',
+        (supplier_id,),
+        one=True
+    )

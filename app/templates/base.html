@@ -29,62 +29,34 @@
     </div>
     {% else %}
     <!-- Navigation - shown when user IS logged in -->
-    <nav class="topbar">
-        <div class="topbar-content">
-            <div class="logo-section">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="GRM Logo" class="logo">
-            </div>
-            <div class="nav-menu">
-                <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
-                    <i class="fas fa-home"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="{{ url_for('documents') }}" class="nav-item {% if request.endpoint == 'documents' %}active{% endif %}">
-                    <i class="fas fa-folder"></i>
-                    <span>Dokumenter</span>
-                </a>
-                <a href="{{ url_for('calendar') }}" class="nav-item {% if request.endpoint == 'calendar' %}active{% endif %}">
-                    <i class="fas fa-calendar"></i>
-                    <span>Kalender</span>
-                </a>
-                <a href="{{ url_for('tasks') }}" class="nav-item {% if request.endpoint == 'tasks' %}active{% endif %}">
-                    <i class="fas fa-tasks"></i>
-                    <span>Oppgaver</span>
-                </a>
-                <a href="{{ url_for('suppliers') }}" class="nav-item {% if request.endpoint == 'suppliers' %}active{% endif %}">
-                    <i class="fas fa-key"></i>
-                    <span>Leverandør</span>
-                </a>
-                {% if user.is_admin %}
-                <!-- Admin link - shown only for admin users -->
-                <a href="#" class="nav-item">
-                    <i class="fas fa-cog"></i>
-                    <span>Innstillinger</span>
-                </a>
-                {% endif %}
-            </div>
-            <div class="user-section">
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">🏢 GRM Intranett</div>
+                <nav class="nav-menu">
+                    <a href="{{ url_for('dashboard.index') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('dashboard') %}active{% endif %}">
+                        🏠 Dashboard
+                    </a>
+                    <a href="{{ url_for('documents.index') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('documents') %}active{% endif %}">
+                        📁 Dokumenter
+                    </a>
+                    <a href="{{ url_for('calendar.index') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('calendar') %}active{% endif %}">
+                        📅 Kalender
+                    </a>
+                    <a href="{{ url_for('tasks.index') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('tasks') %}active{% endif %}">
+                        ✅ Oppgaver
+                    </a>
+                    <a href="{{ url_for('suppliers.index') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('suppliers') %}active{% endif %}">
+                        🏭 Leverandører
+                    </a>
+                </nav>
                 <div class="user-info">
-                    <span class="user-name">{{ user.displayName or user.mail }}</span>
-                    <div class="user-dropdown">
-                        <button class="user-menu-btn">
-                            <i class="fas fa-user-circle"></i>
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                        <div class="dropdown-content">
-                            <a href="#"><i class="fas fa-user"></i> Profil</a>
-                            <div class="user-email">{{ user.mail }}</div>
-                            {% if user.jobTitle %}
-                            <div class="user-title">{{ user.jobTitle }}</div>
-                            {% endif %}
-                            <hr>
-                            <a href="#" onclick="logoutUser()"><i class="fas fa-sign-out-alt"></i> Logg ut</a>
-                        </div>
-                    </div>
+                    <span>{{ user_name or "Demo User" }}</span>
+                    <a href="{{ url_for('auth.logout') }}" class="logout-btn">Logg ut</a>
                 </div>
             </div>
         </div>
-    </nav>
+    </header>
     {% endif %}
 
     <main class="main-content">

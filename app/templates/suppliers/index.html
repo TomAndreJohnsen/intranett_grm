@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leverandører - GRM Intranett</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .main-content {
+            padding: 2rem 0;
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .breadcrumb {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .breadcrumb a {
+            color: #10B981;
+            text-decoration: none;
+        }
+
+        .controls-section {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .create-supplier-section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stats-section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-width: 200px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: #f3f4f6;
+            border-radius: 6px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #10B981;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-top: 0.5rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 2fr auto;
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-family: inherit;
+        }
+
+        .btn {
+            background: #10B981;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn-small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .btn-copy {
+            background: #6b7280;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+            margin-left: 0.5rem;
+        }
+
+        .btn-copy:hover {
+            background: #4b5563;
+        }
+
+        .suppliers-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .suppliers-list {
+            display: grid;
+            gap: 1px;
+            background: #e5e7eb;
+        }
+
+        .supplier-item {
+            background: white;
+            padding: 1.5rem;
+            transition: background 0.2s;
+        }
+
+        .supplier-item:hover {
+            background: #f9fafb;
+        }
+
+        .supplier-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .supplier-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .supplier-name a {
+            color: #10B981;
+            text-decoration: none;
+        }
+
+        .supplier-name a:hover {
+            text-decoration: underline;
+        }
+
+        .supplier-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .supplier-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .detail-label {
+            font-size: 0.8rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-family: 'Courier New', monospace;
+            padding: 0.5rem;
+            background: #f3f4f6;
+            border-radius: 4px;
+            border: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .password-field {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .password-hidden {
+            letter-spacing: 0.1em;
+        }
+
+        .copy-feedback {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10B981;
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .copy-feedback.show {
+            transform: translateX(0);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #6b7280;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .flash-messages {
+            margin: 1rem 0;
+        }
+
+        .flash-message {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flash-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+
+        .flash-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #dc2626;
+        }
+
+        .edit-form {
+            display: none;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .edit-form.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .controls-section {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .supplier-details {
+                grid-template-columns: 1fr;
+            }
+
+            .supplier-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">🏭 Leverandører</div>
+                <div class="user-info">
+                    <span>{{ user_name }}</span>
+                    <a href="{{ url_for('dashboard.index') }}" style="color: white; text-decoration: none;">← Dashboard</a>
+                    <a href="{{ url_for('auth.logout') }}" style="color: white; text-decoration: none;">Logg ut</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Flash messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <div class="main-content">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1 class="page-title">🏭 Leverandører</h1>
+                <div class="breadcrumb">
+                    <a href="{{ url_for('dashboard.index') }}">Dashboard</a> / Leverandører
+                </div>
+            </div>
+
+            <!-- Controls Section -->
+            <div class="controls-section">
+                <!-- Create Supplier Section -->
+                <div class="create-supplier-section">
+                    <h3 style="margin-bottom: 1rem;">➕ Ny leverandør</h3>
+                    <form method="POST" action="{{ url_for('suppliers.create') }}">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="name">Navn *</label>
+                                <input type="text" id="name" name="name" required maxlength="200" placeholder="Leverandør navn">
+                            </div>
+                            <div class="form-group">
+                                <label for="username">Brukernavn</label>
+                                <input type="text" id="username" name="username" maxlength="100" placeholder="Brukernavn">
+                            </div>
+                            <div class="form-group">
+                                <label for="password">Passord</label>
+                                <input type="password" id="password" name="password" maxlength="100" placeholder="Passord">
+                            </div>
+                            <div class="form-group">
+                                <label for="website">Nettside</label>
+                                <input type="url" id="website" name="website" maxlength="200" placeholder="https://example.com">
+                            </div>
+                            <button type="submit" class="btn">🏭 Opprett</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Statistics Section -->
+                <div class="stats-section">
+                    <h3 style="margin-bottom: 1rem;">📊 Statistikk</h3>
+                    <div class="stat-item">
+                        <div class="stat-number">{{ total_suppliers }}</div>
+                        <div class="stat-label">Leverandører</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Suppliers List -->
+            <div class="suppliers-section">
+                <div class="section-header">
+                    <h2 class="section-title">Leverandørliste ({{ suppliers|length }})</h2>
+                </div>
+
+                {% if suppliers %}
+                    <div class="suppliers-list">
+                        {% for supplier in suppliers %}
+                        <div class="supplier-item">
+                            <div class="supplier-header">
+                                <div class="supplier-name">
+                                    {% if supplier.website %}
+                                        <a href="{{ supplier.website }}" target="_blank" rel="noopener noreferrer">
+                                            {{ supplier.name }}
+                                        </a>
+                                    {% else %}
+                                        {{ supplier.name }}
+                                    {% endif %}
+                                </div>
+                                <div class="supplier-actions">
+                                    <button onclick="toggleEdit({{ supplier.id }})" class="btn btn-small">✏️ Rediger</button>
+                                    <form method="POST" action="{{ url_for('suppliers.delete', supplier_id=supplier.id) }}"
+                                          style="display: inline;"
+                                          onsubmit="return confirm('Er du sikker på at du vil slette denne leverandøren?')">
+                                        <button type="submit" class="btn btn-danger btn-small">🗑️ Slett</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <div class="supplier-details">
+                                {% if supplier.username %}
+                                <div class="detail-item">
+                                    <div class="detail-label">Brukernavn</div>
+                                    <div class="detail-value">
+                                        <span>{{ supplier.username }}</span>
+                                        <button onclick="copyToClipboard('{{ supplier.username }}')" class="btn btn-copy">📋 Kopier</button>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if supplier.password %}
+                                <div class="detail-item">
+                                    <div class="detail-label">Passord</div>
+                                    <div class="detail-value">
+                                        <span class="password-field"
+                                              id="password-{{ supplier.id }}"
+                                              onmouseenter="showPassword({{ supplier.id }})"
+                                              onmouseleave="hidePassword({{ supplier.id }})"
+                                              data-password="{{ supplier.password }}">
+                                            <span class="password-hidden">••••••••</span>
+                                        </span>
+                                        <button onclick="copyToClipboard('{{ supplier.password }}')" class="btn btn-copy">📋 Kopier</button>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if supplier.website %}
+                                <div class="detail-item">
+                                    <div class="detail-label">Nettside</div>
+                                    <div class="detail-value">
+                                        <a href="{{ supplier.website }}" target="_blank" rel="noopener noreferrer">{{ supplier.website }}</a>
+                                        <button onclick="copyToClipboard('{{ supplier.website }}')" class="btn btn-copy">📋 Kopier</button>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <div class="detail-item">
+                                    <div class="detail-label">Opprettet</div>
+                                    <div class="detail-value">
+                                        <span>{{ supplier.created_at[:16] }} av {{ supplier.created_by }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Edit Form -->
+                            <div class="edit-form" id="edit-form-{{ supplier.id }}">
+                                <form method="POST" action="{{ url_for('suppliers.edit', supplier_id=supplier.id) }}">
+                                    <div class="form-grid">
+                                        <div class="form-group">
+                                            <label>Navn *</label>
+                                            <input type="text" name="name" value="{{ supplier.name }}" required maxlength="200">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Brukernavn</label>
+                                            <input type="text" name="username" value="{{ supplier.username or '' }}" maxlength="100">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Passord</label>
+                                            <input type="password" name="password" value="{{ supplier.password or '' }}" maxlength="100">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Nettside</label>
+                                            <input type="url" name="website" value="{{ supplier.website or '' }}" maxlength="200">
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem;">
+                                            <button type="submit" class="btn btn-small">💾 Lagre</button>
+                                            <button type="button" onclick="toggleEdit({{ supplier.id }})" class="btn btn-small" style="background: #6b7280;">❌ Avbryt</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🏭</div>
+                        <h3>Ingen leverandører funnet</h3>
+                        <p>Det er ingen leverandører registrert ennå.</p>
+                        <p style="margin-top: 0.5rem;">Opprett den første leverandøren ved å bruke skjemaet ovenfor! 📝</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Copy feedback notification -->
+    <div id="copyFeedback" class="copy-feedback">
+        Kopiert til utklippstavle!
+    </div>
+
+    <script>
+        function toggleEdit(supplierId) {
+            const editForm = document.getElementById(`edit-form-${supplierId}`);
+            editForm.classList.toggle('active');
+        }
+
+        function showPassword(supplierId) {
+            const passwordField = document.getElementById(`password-${supplierId}`);
+            const actualPassword = passwordField.getAttribute('data-password');
+            passwordField.innerHTML = `<span>${actualPassword}</span>`;
+        }
+
+        function hidePassword(supplierId) {
+            const passwordField = document.getElementById(`password-${supplierId}`);
+            passwordField.innerHTML = '<span class="password-hidden">••••••••</span>';
+        }
+
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                showCopyFeedback();
+            } catch (err) {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showCopyFeedback();
+            }
+        }
+
+        function showCopyFeedback() {
+            const feedback = document.getElementById('copyFeedback');
+            feedback.classList.add('show');
+            setTimeout(() => {
+                feedback.classList.remove('show');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

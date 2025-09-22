@@ -36,12 +36,13 @@ def create_app(config_name='default'):
     logger.info("Upload directories created")
 
     # Register blueprints
-    from .routes import auth, dashboard, documents, calendar, tasks
+    from .routes import auth, dashboard, documents, calendar, tasks, suppliers
     app.register_blueprint(auth.bp)
     app.register_blueprint(dashboard.bp)
     app.register_blueprint(documents.bp)
     app.register_blueprint(calendar.bp)
     app.register_blueprint(tasks.bp)
+    app.register_blueprint(suppliers.bp)
     logger.info("Blueprints registered")
 
     # All main blueprints now implemented
