@@ -552,6 +552,34 @@ def download_document(doc_id):
         flash('Fil ikke funnet')
         return redirect(url_for('documents'))
 
+@app.route('/documents/delete/<int:doc_id>', methods=['POST'])
+@admin_required
+def delete_document(doc_id):
+    """Delete document."""
+    conn = get_db_connection()
+    doc = conn.execute('SELECT filename, folder FROM documents WHERE id = ?', (doc_id,)).fetchone()
+
+    if doc:
+        # Delete file from filesystem
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], doc['folder'], doc['filename'])
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except OSError as e:
+            flash(f'Kunne ikke slette fil fra disk: {str(e)}')
+            conn.close()
+            return redirect(request.referrer or url_for('documents'))
+
+        # Delete database record
+        conn.execute('DELETE FROM documents WHERE id = ?', (doc_id,))
+        conn.commit()
+        flash('Dokument slettet')
+    else:
+        flash('Dokument ikke funnet')
+
+    conn.close()
+    return redirect(request.referrer or url_for('documents'))
+
 
 # ========== TASKS ROUTES ==========
 @app.route('/tasks')

@@ -83,21 +83,21 @@
                 </div>
 
                 {% for doc in documents %}
-                <div class="table-row" data-filename="{{ doc[1]|lower }}">
+                <div class="table-row" data-filename="{{ doc['original_filename']|lower }}">
                     <div class="col-name">
                         <div class="file-info">
-                            <i class="fas fa-file{% if doc[1].endswith('.pdf') %}-pdf{% elif doc[1].endswith(('.jpg', '.jpeg', '.png', '.gif')) %}-image{% elif doc[1].endswith(('.doc', '.docx')) %}-word{% elif doc[1].endswith(('.xls', '.xlsx')) %}-excel{% endif %}"></i>
-                            <span>{{ doc[1] }}</span>
+                            <i class="fas fa-file{% if doc['original_filename'].endswith('.pdf') %}-pdf{% elif doc['original_filename'].endswith(('.jpg', '.jpeg', '.png', '.gif')) %}-image{% elif doc['original_filename'].endswith(('.doc', '.docx')) %}-word{% elif doc['original_filename'].endswith(('.xls', '.xlsx')) %}-excel{% endif %}"></i>
+                            <span>{{ doc['original_filename'] }}</span>
                         </div>
                     </div>
-                    <div class="col-date">{{ doc[3] }}</div>
-                    <div class="col-user">{{ doc[4] }}</div>
+                    <div class="col-date">{{ doc['upload_date'] }}</div>
+                    <div class="col-user">{{ doc['uploaded_by_name'] }}</div>
                     <div class="col-actions">
-                        <a href="{{ url_for('download_document', doc_id=doc[0]) }}" class="btn-action download">
+                        <a href="{{ url_for('download_document', doc_id=doc['id']) }}" class="btn-action download">
                             <i class="fas fa-download"></i>
                         </a>
                         {% if user and user.is_admin %}
-                        <button class="btn-action delete" onclick="deleteDocument({{ doc[0] }})">
+                        <button class="btn-action delete" onclick="deleteDocument({{ doc['id'] }})">
                             <i class="fas fa-trash"></i>
                         </button>
                         {% endif %}
@@ -474,9 +474,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function deleteDocument(docId) {
     if (confirm('Er du sikker på at du vil slette dette dokumentet?')) {
-        // Add delete functionality here
-        console.log('Delete document:', docId);
-        alert('Slettfunksjon ikke implementert ennå');
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/documents/delete/${docId}`;
+        form.style.display = 'none';
+        document.body.appendChild(form);
+        form.submit();
     }
 }
 </script>
