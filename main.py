@@ -438,7 +438,7 @@ def calendar():
 
     events = conn.execute('''
         SELECT id, title, description, start_date, end_date,
-               start_time, end_time, location, responsible_user_name
+               start_time, end_time, location, responsible_user_name, responsible_user_email
         FROM calendar_events ORDER BY start_date, start_time
     ''').fetchall()
 
@@ -474,6 +474,61 @@ def create_event():
     else:
         flash('Tittel og startdato er påkrevd')
 
+    return redirect(url_for('calendar'))
+
+@app.route('/calendar/edit', methods=['POST'])
+@auth_required
+def edit_event():
+    """Edit calendar event."""
+    user = get_current_user()
+    event_id = request.form.get('event_id')
+    title = request.form.get('title')
+    description = request.form.get('description')
+    start_date = request.form.get('start_date')
+    end_date = request.form.get('end_date')
+    start_time = request.form.get('start_time')
+    end_time = request.form.get('end_time')
+    location = request.form.get('location')
+
+    if event_id and title and start_date:
+        conn = get_db_connection()
+
+        # Check permissions - creator or admin can edit
+        event = conn.execute('SELECT responsible_user_email FROM calendar_events WHERE id = ?', (event_id,)).fetchone()
+        if event and (event['responsible_user_email'] == user.get('mail') or user.get('is_admin', False)):
+            conn.execute('''
+                UPDATE calendar_events SET title = ?, description = ?, start_date = ?, end_date = ?,
+                       start_time = ?, end_time = ?, location = ?
+                WHERE id = ?
+            ''', (title, description, start_date, end_date, start_time, end_time, location, event_id))
+            conn.commit()
+            flash('Hendelse oppdatert!')
+        else:
+            flash('Du har ikke tilgang til å redigere denne hendelsen')
+
+        conn.close()
+    else:
+        flash('Hendelse-ID, tittel og startdato er påkrevd')
+
+    return redirect(url_for('calendar'))
+
+@app.route('/calendar/delete/<int:event_id>', methods=['POST'])
+@auth_required
+def delete_event(event_id):
+    """Delete calendar event."""
+    user = get_current_user()
+    conn = get_db_connection()
+
+    # Check permissions - creator or admin can delete
+    event = conn.execute('SELECT responsible_user_email FROM calendar_events WHERE id = ?', (event_id,)).fetchone()
+    if event and (event['responsible_user_email'] == user.get('mail') or user.get('is_admin', False)):
+        conn.execute('DELETE FROM calendar_events WHERE id = ?', (event_id,))
+        conn.commit()
+        flash('Hendelse slettet!')
+    else:
+        flash('Du har ikke tilgang til å slette denne hendelsen')
+
+    conn.close()
     return redirect(url_for('calendar'))
 
 

@@ -35,7 +35,7 @@
             <h3>Kommende hendelser</h3>
             <div class="events-list">
                 {% for event in events %}
-                <div class="event-item" data-date="{{ event['start_date'] }}">
+                <div class="event-item clickable-event" data-date="{{ event['start_date'] }}" data-event-id="{{ event['id'] }}" onclick="showEventDetailsById({{ event['id'] }})">
                     <div class="event-time">
                         {% if event['start_time'] %}{{ event['start_time'][:5] }}{% else %}Hele dagen{% endif %}
                     </div>
@@ -122,6 +122,112 @@
             <div class="form-actions">
                 <button type="button" class="btn-secondary" onclick="closeEventModal()">Avbryt</button>
                 <button type="submit" class="btn-primary">Opprett hendelse</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Day View Modal -->
+<div id="dayModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="dayModalTitle">Hendelser for</h3>
+            <button class="close-btn" onclick="closeDayModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="day-events-content">
+            <div id="dayEventsList">
+                <!-- Events for the day will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div id="eventDetailsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="eventDetailsTitle">Hendelse detaljer</h3>
+            <div class="event-actions">
+                <button id="editEventBtn" class="btn-secondary" onclick="openEditFromDetails()" style="display: none;">
+                    <i class="fas fa-edit"></i>
+                    Rediger
+                </button>
+                <button id="deleteEventBtn" class="btn-danger" onclick="deleteEventFromDetails()" style="display: none;">
+                    <i class="fas fa-trash"></i>
+                    Slett
+                </button>
+            </div>
+            <button class="close-btn" onclick="closeEventDetailsModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="event-details-content">
+            <div id="eventDetailsContent">
+                <!-- Event details will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Event Modal -->
+<div id="editEventModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Rediger hendelse</h3>
+            <button class="close-btn" onclick="closeEditEventModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('edit_event') }}" class="event-form">
+            <input type="hidden" id="edit-event-id" name="event_id">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-title">Tittel *</label>
+                    <input type="text" id="edit-title" name="title" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-start_date">Startdato *</label>
+                    <input type="date" id="edit-start_date" name="start_date" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-end_date">Sluttdato</label>
+                    <input type="date" id="edit-end_date" name="end_date">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-start_time">Starttid</label>
+                    <input type="time" id="edit-start_time" name="start_time">
+                </div>
+                <div class="form-group">
+                    <label for="edit-end_time">Sluttid</label>
+                    <input type="time" id="edit-end_time" name="end_time">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-location">Sted</label>
+                    <input type="text" id="edit-location" name="location" placeholder="Møterom, adresse, etc.">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-description">Beskrivelse</label>
+                    <textarea id="edit-description" name="description" rows="3" placeholder="Detaljer om hendelsen..."></textarea>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeEditEventModal()">Avbryt</button>
+                <button type="submit" class="btn-primary">Lagre endringer</button>
             </div>
         </form>
     </div>
@@ -442,6 +548,103 @@
     background: var(--border-color);
 }
 
+.btn-danger {
+    background: var(--light-red);
+    color: var(--dark-red);
+    border: 1px solid var(--dark-red);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+    background: var(--primary-red);
+    color: white;
+}
+
+.event-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.day-events-content {
+    padding: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.day-event-item {
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.day-event-item:hover {
+    border-color: var(--primary-green);
+    box-shadow: var(--shadow);
+}
+
+.day-event-time {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary-green);
+    margin-bottom: 4px;
+}
+
+.day-event-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.day-event-details {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.event-details-content {
+    padding: 20px;
+}
+
+.event-detail-row {
+    display: flex;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.event-detail-row:last-child {
+    border-bottom: none;
+}
+
+.event-detail-label {
+    font-weight: 600;
+    min-width: 100px;
+    color: var(--text-primary);
+}
+
+.event-detail-value {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+.clickable-day {
+    cursor: pointer;
+}
+
+.clickable-event {
+    cursor: pointer;
+}
+
+.clickable-event:hover {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
 @media (max-width: 768px) {
     .calendar-content {
         grid-template-columns: 1fr;
@@ -466,6 +669,8 @@
 <script>
 let currentDate = new Date();
 let events = {{ events|tojson }};
+let currentUser = {{ user|tojson }};
+let selectedEvent = null;
 
 function generateCalendar(year, month) {
     const calendarGrid = document.getElementById('calendarGrid');
@@ -500,7 +705,8 @@ function generateCalendar(year, month) {
         date.setDate(startDate.getDate() + i);
 
         const dayElement = document.createElement('div');
-        dayElement.className = 'calendar-day';
+        dayElement.className = 'calendar-day clickable-day';
+        dayElement.onclick = () => showDayEvents(date);
 
         if (date.getMonth() !== month) {
             dayElement.classList.add('other-month');
@@ -558,6 +764,161 @@ function closeEventModal() {
     document.body.style.overflow = 'auto';
 }
 
+// Day View Modal Functions
+function showDayEvents(date) {
+    const dateString = date.toISOString().split('T')[0];
+    const dayEvents = events.filter(event => event.start_date === dateString);
+
+    const monthNames = [
+        'Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni',
+        'Juli', 'August', 'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    const dayName = date.toLocaleDateString('no-NO', { weekday: 'long' });
+    const formattedDate = `${dayName} ${date.getDate()}. ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+
+    document.getElementById('dayModalTitle').textContent = `Hendelser for ${formattedDate}`;
+
+    const dayEventsList = document.getElementById('dayEventsList');
+    dayEventsList.innerHTML = '';
+
+    if (dayEvents.length === 0) {
+        dayEventsList.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 20px;">Ingen hendelser denne dagen</p>';
+    } else {
+        dayEvents.forEach(event => {
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'day-event-item';
+            eventDiv.onclick = () => {
+                closeDayModal();
+                showEventDetailsById(event.id);
+            };
+
+            eventDiv.innerHTML = `
+                <div class="day-event-time">${event.start_time ? event.start_time.substring(0, 5) : 'Hele dagen'}</div>
+                <div class="day-event-title">${event.title}</div>
+                <div class="day-event-details">
+                    ${event.location ? `<i class="fas fa-map-marker-alt"></i> ${event.location}` : ''}
+                    ${event.location && event.responsible_user_name ? ' • ' : ''}
+                    ${event.responsible_user_name ? `<i class="fas fa-user"></i> ${event.responsible_user_name}` : ''}
+                </div>
+            `;
+
+            dayEventsList.appendChild(eventDiv);
+        });
+    }
+
+    document.getElementById('dayModal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDayModal() {
+    document.getElementById('dayModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+// Event Details Modal Functions
+function showEventDetailsById(eventId) {
+    const event = events.find(e => e.id === eventId);
+    if (event) {
+        showEventDetails(event);
+    }
+}
+
+function showEventDetails(event) {
+    selectedEvent = event;
+
+    const content = document.getElementById('eventDetailsContent');
+    content.innerHTML = `
+        <div class="event-detail-row">
+            <div class="event-detail-label">Tittel:</div>
+            <div class="event-detail-value">${event.title}</div>
+        </div>
+        <div class="event-detail-row">
+            <div class="event-detail-label">Dato:</div>
+            <div class="event-detail-value">${formatDate(event.start_date)} ${event.end_date && event.end_date !== event.start_date ? '- ' + formatDate(event.end_date) : ''}</div>
+        </div>
+        <div class="event-detail-row">
+            <div class="event-detail-label">Tid:</div>
+            <div class="event-detail-value">${event.start_time ? event.start_time.substring(0, 5) : 'Hele dagen'} ${event.end_time ? '- ' + event.end_time.substring(0, 5) : ''}</div>
+        </div>
+        ${event.location ? `
+        <div class="event-detail-row">
+            <div class="event-detail-label">Sted:</div>
+            <div class="event-detail-value">${event.location}</div>
+        </div>
+        ` : ''}
+        ${event.description ? `
+        <div class="event-detail-row">
+            <div class="event-detail-label">Beskrivelse:</div>
+            <div class="event-detail-value">${event.description}</div>
+        </div>
+        ` : ''}
+        <div class="event-detail-row">
+            <div class="event-detail-label">Ansvarlig:</div>
+            <div class="event-detail-value">${event.responsible_user_name}</div>
+        </div>
+    `;
+
+    // Show edit/delete buttons if user has permission
+    const canEdit = currentUser.is_admin || (currentUser.mail === event.responsible_user_email);
+    document.getElementById('editEventBtn').style.display = canEdit ? 'inline-block' : 'none';
+    document.getElementById('deleteEventBtn').style.display = canEdit ? 'inline-block' : 'none';
+
+    document.getElementById('eventDetailsModal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeEventDetailsModal() {
+    document.getElementById('eventDetailsModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    selectedEvent = null;
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('no-NO', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+}
+
+// Edit Event Modal Functions
+function openEditFromDetails() {
+    if (!selectedEvent) return;
+
+    document.getElementById('edit-event-id').value = selectedEvent.id;
+    document.getElementById('edit-title').value = selectedEvent.title;
+    document.getElementById('edit-start_date').value = selectedEvent.start_date;
+    document.getElementById('edit-end_date').value = selectedEvent.end_date || '';
+    document.getElementById('edit-start_time').value = selectedEvent.start_time || '';
+    document.getElementById('edit-end_time').value = selectedEvent.end_time || '';
+    document.getElementById('edit-location').value = selectedEvent.location || '';
+    document.getElementById('edit-description').value = selectedEvent.description || '';
+
+    closeEventDetailsModal();
+    document.getElementById('editEventModal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeEditEventModal() {
+    document.getElementById('editEventModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function deleteEventFromDetails() {
+    if (!selectedEvent) return;
+
+    if (confirm(`Er du sikker på at du vil slette hendelsen "${selectedEvent.title}"?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/calendar/delete/${selectedEvent.id}`;
+        form.style.display = 'none';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     generateCalendar(currentDate.getFullYear(), currentDate.getMonth());
 
@@ -565,6 +926,24 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('eventModal').addEventListener('click', function(e) {
         if (e.target === this) {
             closeEventModal();
+        }
+    });
+
+    document.getElementById('dayModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeDayModal();
+        }
+    });
+
+    document.getElementById('eventDetailsModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeEventDetailsModal();
+        }
+    });
+
+    document.getElementById('editEventModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeEditEventModal();
         }
     });
 
