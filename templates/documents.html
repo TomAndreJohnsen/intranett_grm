@@ -23,11 +23,13 @@
                         <i class="fas fa-hard-hat"></i>
                     {% elif folder == 'it' %}
                         <i class="fas fa-laptop-code"></i>
+                    {% elif folder == 'varemottak' %}
+                        <i class="fas fa-truck-loading"></i>
                     {% endif %}
                 </div>
                 <div class="folder-info">
-                    <h3>{% if folder == 'it' %}IT{% elif folder == 'hms' %}HMS{% else %}{{ folder.title() }}{% endif %}</h3>
-                    <p>{% if folder == 'it' %}IT{% elif folder == 'hms' %}HMS{% else %}{{ folder|capitalize }}{% endif %} dokumenter</p>
+                    <h3>{% if folder == 'it' %}IT{% elif folder == 'hms' %}HMS{% elif folder == 'varemottak' %}Varemottak{% else %}{{ folder.title() }}{% endif %}</h3>
+                    <p>{% if folder == 'it' %}IT{% elif folder == 'hms' %}HMS{% elif folder == 'varemottak' %}Varemottak{% else %}{{ folder|capitalize }}{% endif %} dokumenter</p>
                 </div>
             </a>
             {% endfor %}
@@ -40,7 +42,7 @@
         <div class="breadcrumb">
             <a href="{{ url_for('documents') }}">Dokumenter</a>
             <i class="fas fa-chevron-right"></i>
-            <span>{{ current_folder.title() }}</span>
+            <span>{% if current_folder == 'it' %}IT{% elif current_folder == 'hms' %}HMS{% elif current_folder == 'varemottak' %}Varemottak{% else %}{{ current_folder.title() }}{% endif %}</span>
         </div>
 
         <!-- Upload Section -->
@@ -64,11 +66,35 @@
         <!-- Documents List -->
         <div class="documents-list">
             <div class="list-header">
-                <h3>Filer i {{ current_folder.title() }}</h3>
+                <h3>Filer i {% if current_folder == 'it' %}IT{% elif current_folder == 'hms' %}HMS{% elif current_folder == 'varemottak' %}Varemottak{% else %}{{ current_folder.title() }}{% endif %}</h3>
                 <div class="list-actions">
-                    <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" placeholder="Søk etter filer..." id="searchInput">
+                    <div class="filter-controls">
+                        <!-- Tag Filter -->
+                        <div class="tag-filter">
+                            <label for="tagFilter">Filtrer etter tags:</label>
+                            <select id="tagFilter" multiple>
+                                <option value="">Alle tags</option>
+                                {% for tag in all_tags %}
+                                <option value="{{ tag['id'] }}" data-color="{{ tag['color'] }}">{{ tag['name'] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Sort Control -->
+                        <div class="sort-control">
+                            <label for="sortBy">Sorter etter:</label>
+                            <select id="sortBy">
+                                <option value="date">Dato (nyeste først)</option>
+                                <option value="name">Navn (A-Å)</option>
+                                <option value="tags">Antall tags</option>
+                            </select>
+                        </div>
+
+                        <!-- Search -->
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" placeholder="Søk etter filer..." id="searchInput">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -77,18 +103,39 @@
             <div class="documents-table">
                 <div class="table-header">
                     <div class="col-name">Filnavn</div>
+                    <div class="col-tags">Tags</div>
+                    <div class="col-comments">Kommentarer</div>
                     <div class="col-date">Opplastet</div>
                     <div class="col-user">Av</div>
                     <div class="col-actions">Handlinger</div>
                 </div>
 
                 {% for doc in documents %}
-                <div class="table-row" data-filename="{{ doc['original_filename']|lower }}">
+                <div class="table-row" data-filename="{{ doc['original_filename']|lower }}" data-doc-id="{{ doc['id'] }}">
                     <div class="col-name">
                         <div class="file-info">
                             <i class="fas fa-file{% if doc['original_filename'].endswith('.pdf') %}-pdf{% elif doc['original_filename'].endswith(('.jpg', '.jpeg', '.png', '.gif')) %}-image{% elif doc['original_filename'].endswith(('.doc', '.docx')) %}-word{% elif doc['original_filename'].endswith(('.xls', '.xlsx')) %}-excel{% endif %}"></i>
                             <span>{{ doc['original_filename'] }}</span>
                         </div>
+                    </div>
+                    <div class="col-tags">
+                        <div class="tags-container">
+                            {% for tag in doc['tags'] %}
+                            <span class="tag" style="background-color: {{ tag['color'] }}20; color: {{ tag['color'] }}; border: 1px solid {{ tag['color'] }}">
+                                {{ tag['name'] }}
+                                <button class="tag-remove" onclick="removeTag({{ doc['id'] }}, {{ tag['id'] }})" title="Fjern tag">×</button>
+                            </span>
+                            {% endfor %}
+                            <button class="tag-add-btn" onclick="showTagSelector({{ doc['id'] }})" title="Legg til tag">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-comments">
+                        <button class="comments-btn" onclick="openCommentsModal({{ doc['id'] }}, '{{ doc['original_filename'] }}')" title="Se kommentarer">
+                            <i class="fas fa-comments"></i>
+                            <span class="comment-count">{{ doc['comment_count'] }}</span>
+                        </button>
                     </div>
                     <div class="col-date">{{ doc['upload_date'] }}</div>
                     <div class="col-user">{{ doc['uploaded_by_name'] }}</div>
@@ -123,6 +170,56 @@
         </div>
     </div>
     {% endif %}
+</div>
+
+<!-- Tag Selector Modal -->
+<div id="tagSelectorModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Legg til tag</h3>
+            <button class="close-btn" onclick="closeTagSelector()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>Velg tags for dokumentet:</p>
+            <div class="tag-selector">
+                {% for tag in all_tags %}
+                <div class="tag-option" data-tag-id="{{ tag['id'] }}" onclick="selectTag({{ tag['id'] }})"
+                     style="background-color: {{ tag['color'] }}20; color: {{ tag['color'] }}; border: 1px solid {{ tag['color'] }}">
+                    {{ tag['name'] }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comments Modal -->
+<div id="commentsModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Kommentarer - <span id="commentsFileName"></span></h3>
+            <button class="close-btn" onclick="closeCommentsModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <!-- Comments List -->
+            <div id="commentsList" class="comments-list">
+                <!-- Comments will be loaded here -->
+            </div>
+
+            <!-- Add Comment Form -->
+            <div class="add-comment">
+                <textarea id="newCommentText" placeholder="Skriv en kommentar..." rows="3"></textarea>
+                <button onclick="addComment()" class="btn-primary">
+                    <i class="fas fa-paper-plane"></i>
+                    Send kommentar
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -304,7 +401,7 @@
 
 .table-header, .table-row {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 120px;
+    grid-template-columns: 2fr 1.5fr 120px 120px 100px 120px;
     gap: 16px;
     padding: 16px 20px;
     align-items: center;
@@ -395,6 +492,266 @@
     color: var(--text-primary);
 }
 
+/* Filter Controls */
+.filter-controls {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.tag-filter, .sort-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tag-filter label, .sort-control label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.tag-filter select, .sort-control select {
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-width: 120px;
+}
+
+/* Tags */
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.tag-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.tag-remove:hover {
+    opacity: 1;
+}
+
+.tag-add-btn {
+    background: var(--bg-tertiary);
+    border: 1px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tag-add-btn:hover {
+    border-color: var(--primary-green);
+    color: var(--primary-green);
+}
+
+/* Comments */
+.comments-btn {
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.comments-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--primary-green);
+}
+
+.comment-count {
+    background: var(--primary-green);
+    color: white;
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    min-width: 18px;
+    text-align: center;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: var(--bg-primary);
+    margin: 5% auto;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+}
+
+.close-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+/* Tag Selector Modal */
+.tag-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.tag-option {
+    padding: 8px 12px;
+    border-radius: 16px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: 1px solid;
+}
+
+.tag-option:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tag-option.selected {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Comments Modal */
+.comments-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.comment-item {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.comment-item:last-child {
+    border-bottom: none;
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.comment-author {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.comment-date {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.comment-text {
+    color: var(--text-primary);
+    line-height: 1.5;
+    font-size: 14px;
+}
+
+.add-comment {
+    border-top: 1px solid var(--border-color);
+    padding-top: 20px;
+}
+
+.add-comment textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 14px;
+    resize: vertical;
+    margin-bottom: 12px;
+    font-family: inherit;
+}
+
+.add-comment .btn-primary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
 @media (max-width: 768px) {
     .folders-grid {
         grid-template-columns: 1fr;
@@ -407,6 +764,21 @@
 
     .search-box {
         width: 200px;
+    }
+
+    .filter-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .tag-filter, .sort-control {
+        width: 100%;
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
     }
 }
 </style>
@@ -481,6 +853,252 @@ function deleteDocument(docId) {
         document.body.appendChild(form);
         form.submit();
     }
+}
+
+// Tag Management
+let currentDocumentId = null;
+
+function showTagSelector(docId) {
+    currentDocumentId = docId;
+
+    // Get current tags for this document
+    const row = document.querySelector(`[data-doc-id="${docId}"]`);
+    const currentTags = Array.from(row.querySelectorAll('.tag')).map(tag => {
+        return tag.textContent.trim().replace('×', '');
+    });
+
+    // Mark already selected tags
+    const tagOptions = document.querySelectorAll('.tag-option');
+    tagOptions.forEach(option => {
+        const tagName = option.textContent.trim();
+        if (currentTags.includes(tagName)) {
+            option.classList.add('selected');
+        } else {
+            option.classList.remove('selected');
+        }
+    });
+
+    document.getElementById('tagSelectorModal').style.display = 'block';
+}
+
+function closeTagSelector() {
+    document.getElementById('tagSelectorModal').style.display = 'none';
+    currentDocumentId = null;
+}
+
+function selectTag(tagId) {
+    const tagOption = document.querySelector(`[data-tag-id="${tagId}"]`);
+    if (tagOption.classList.contains('selected')) {
+        return; // Already selected
+    }
+
+    if (!currentDocumentId) return;
+
+    // Add tag via API
+    fetch(`/api/documents/${currentDocumentId}/tags`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tag_id: tagId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Reload page to show updated tags
+            location.reload();
+        } else {
+            alert('Feil ved tillegg av tag: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Feil ved tillegg av tag');
+    });
+}
+
+function removeTag(docId, tagId) {
+    if (!confirm('Er du sikker på at du vil fjerne denne taggen?')) {
+        return;
+    }
+
+    fetch(`/api/documents/${docId}/tags/${tagId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Reload page to show updated tags
+            location.reload();
+        } else {
+            alert('Feil ved fjerning av tag: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Feil ved fjerning av tag');
+    });
+}
+
+// Comments Management
+let currentCommentsDocId = null;
+
+function openCommentsModal(docId, filename) {
+    currentCommentsDocId = docId;
+    document.getElementById('commentsFileName').textContent = filename;
+    loadComments(docId);
+    document.getElementById('commentsModal').style.display = 'block';
+}
+
+function closeCommentsModal() {
+    document.getElementById('commentsModal').style.display = 'none';
+    currentCommentsDocId = null;
+}
+
+function loadComments(docId) {
+    fetch(`/api/documents/${docId}/comments`)
+    .then(response => response.json())
+    .then(data => {
+        const commentsList = document.getElementById('commentsList');
+
+        if (data.comments && data.comments.length > 0) {
+            commentsList.innerHTML = data.comments.map(comment => `
+                <div class="comment-item">
+                    <div class="comment-header">
+                        <span class="comment-author">${comment.user_name}</span>
+                        <span class="comment-date">${comment.created_at}</span>
+                    </div>
+                    <div class="comment-text">${comment.comment}</div>
+                </div>
+            `).join('');
+        } else {
+            commentsList.innerHTML = '<div class="comment-item"><div class="comment-text" style="color: var(--text-secondary); font-style: italic;">Ingen kommentarer ennå</div></div>';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading comments:', error);
+        document.getElementById('commentsList').innerHTML = '<div class="comment-item"><div class="comment-text" style="color: var(--text-secondary);">Feil ved lasting av kommentarer</div></div>';
+    });
+}
+
+function addComment() {
+    const textarea = document.getElementById('newCommentText');
+    const comment = textarea.value.trim();
+
+    if (!comment) {
+        alert('Vennligst skriv en kommentar');
+        return;
+    }
+
+    if (!currentCommentsDocId) return;
+
+    fetch(`/api/documents/${currentCommentsDocId}/comments`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ comment: comment })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            textarea.value = '';
+            loadComments(currentCommentsDocId);
+            // Update comment count in the table
+            const commentBtn = document.querySelector(`[data-doc-id="${currentCommentsDocId}"] .comment-count`);
+            if (commentBtn) {
+                const currentCount = parseInt(commentBtn.textContent) || 0;
+                commentBtn.textContent = currentCount + 1;
+            }
+        } else {
+            alert('Feil ved tillegg av kommentar: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Feil ved tillegg av kommentar');
+    });
+}
+
+// Filtering and Sorting
+document.addEventListener('DOMContentLoaded', function() {
+    // Tag filter functionality
+    const tagFilter = document.getElementById('tagFilter');
+    if (tagFilter) {
+        tagFilter.addEventListener('change', filterDocuments);
+    }
+
+    // Sort functionality
+    const sortBy = document.getElementById('sortBy');
+    if (sortBy) {
+        sortBy.addEventListener('change', sortDocuments);
+    }
+
+    // Close modals when clicking outside
+    window.addEventListener('click', function(event) {
+        const tagModal = document.getElementById('tagSelectorModal');
+        const commentsModal = document.getElementById('commentsModal');
+
+        if (event.target === tagModal) {
+            closeTagSelector();
+        }
+        if (event.target === commentsModal) {
+            closeCommentsModal();
+        }
+    });
+});
+
+function filterDocuments() {
+    const tagFilter = document.getElementById('tagFilter');
+    const selectedTags = Array.from(tagFilter.selectedOptions).map(option => option.value);
+    const rows = document.querySelectorAll('.table-row');
+
+    rows.forEach(row => {
+        if (selectedTags.length === 0 || selectedTags.includes('')) {
+            // Show all if no tags selected
+            row.style.display = 'grid';
+        } else {
+            // Check if document has any of the selected tags
+            const docTags = Array.from(row.querySelectorAll('.tag')).map(tag => {
+                const tagName = tag.textContent.trim().replace('×', '');
+                const tagOption = Array.from(document.querySelectorAll('.tag-option')).find(option =>
+                    option.textContent.trim() === tagName
+                );
+                return tagOption ? tagOption.getAttribute('data-tag-id') : null;
+            }).filter(id => id !== null);
+
+            const hasSelectedTag = selectedTags.some(tagId => docTags.includes(tagId));
+            row.style.display = hasSelectedTag ? 'grid' : 'none';
+        }
+    });
+}
+
+function sortDocuments() {
+    const sortBy = document.getElementById('sortBy').value;
+    const table = document.querySelector('.documents-table');
+    const rows = Array.from(document.querySelectorAll('.table-row'));
+
+    rows.sort((a, b) => {
+        switch (sortBy) {
+            case 'name':
+                const nameA = a.querySelector('.col-name span').textContent.toLowerCase();
+                const nameB = b.querySelector('.col-name span').textContent.toLowerCase();
+                return nameA.localeCompare(nameB);
+
+            case 'tags':
+                const tagsA = a.querySelectorAll('.tag').length;
+                const tagsB = b.querySelectorAll('.tag').length;
+                return tagsB - tagsA; // Most tags first
+
+            case 'date':
+            default:
+                // Default is already sorted by date (newest first)
+                return 0;
+        }
+    });
+
+    // Re-append sorted rows
+    rows.forEach(row => table.appendChild(row));
 }
 </script>
 {% endblock %}

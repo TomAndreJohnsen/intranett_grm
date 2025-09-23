@@ -150,7 +150,7 @@ Session(app)
 
 # Create upload directories
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-for folder in ['salg', 'verksted', 'hms', 'it']:
+for folder in ['salg', 'verksted', 'hms', 'it', 'varemottak']:
     os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], folder), exist_ok=True)
 
 # Initialize auth manager
@@ -302,6 +302,56 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Document tags table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS document_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            color TEXT DEFAULT '#10B981',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Document tag relations table (many-to-many between documents and tags)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS document_tag_relations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES document_tags (id) ON DELETE CASCADE,
+            UNIQUE(document_id, tag_id)
+        )
+    ''')
+
+    # Document comments table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS document_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER NOT NULL,
+            user_email TEXT NOT NULL,
+            user_name TEXT NOT NULL,
+            comment TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
+        )
+    ''')
+
+    # Create default document tags
+    cursor.execute('SELECT COUNT(*) FROM document_tags')
+    if cursor.fetchone()[0] == 0:
+        default_tags = [
+            ('Viktig', '#DC2626'),      # Red
+            ('Urgent', '#EF4444'),      # Red
+            ('Gjennomgått', '#10B981'), # Green
+            ('Arkiv', '#6B7280'),       # Gray
+            ('Utkast', '#F59E0B'),      # Orange
+            ('Godkjent', '#059669'),    # Green
+            ('Under arbeid', '#3B82F6') # Blue
+        ]
+        cursor.executemany('INSERT INTO document_tags (name, color) VALUES (?, ?)', default_tags)
 
     # Create default suppliers
     cursor.execute('SELECT COUNT(*) FROM suppliers')
@@ -540,7 +590,7 @@ def delete_event(event_id):
 def documents(folder=None):
     """Documents page."""
     user = get_current_user()
-    allowed_folders = ['salg', 'verksted', 'hms', 'it']
+    allowed_folders = ['salg', 'verksted', 'hms', 'it', 'varemottak']
 
     if folder and folder not in allowed_folders:
         flash('Ugyldig mappe')
@@ -552,14 +602,39 @@ def documents(folder=None):
             SELECT id, original_filename, filename, upload_date, uploaded_by_name
             FROM documents WHERE folder = ? ORDER BY upload_date DESC
         ''', (folder,)).fetchall()
-        # Convert Row objects to dictionaries for JSON serialization
-        documents_dict = [dict(doc) for doc in documents_list]
+
+        documents_dict = []
+        for doc in documents_list:
+            doc_dict = dict(doc)
+
+            # Get tags for this document
+            tags = conn.execute('''
+                SELECT dt.id, dt.name, dt.color
+                FROM document_tags dt
+                JOIN document_tag_relations dtr ON dt.id = dtr.tag_id
+                WHERE dtr.document_id = ?
+                ORDER BY dt.name
+            ''', (doc['id'],)).fetchall()
+            doc_dict['tags'] = [dict(tag) for tag in tags]
+
+            # Get comment count for this document
+            comment_count = conn.execute('''
+                SELECT COUNT(*) FROM document_comments WHERE document_id = ?
+            ''', (doc['id'],)).fetchone()[0]
+            doc_dict['comment_count'] = comment_count
+
+            documents_dict.append(doc_dict)
     else:
         documents_dict = []
 
+    # Get all available tags for the tag selector
+    all_tags = conn.execute('SELECT * FROM document_tags ORDER BY name').fetchall()
+    all_tags_dict = [dict(tag) for tag in all_tags]
+
     conn.close()
     return render_template('documents.html', user=user, current_folder=folder,
-                         documents=documents_dict, folders=allowed_folders)
+                         documents=documents_dict, folders=allowed_folders,
+                         all_tags=all_tags_dict)
 
 @app.route('/documents/upload', methods=['POST'])
 @auth_required
@@ -578,7 +653,7 @@ def upload_document():
         flash('Vennligst velg fil og mappe')
         return redirect(request.referrer)
 
-    if folder not in ['salg', 'verksted', 'hms', 'it']:
+    if folder not in ['salg', 'verksted', 'hms', 'it', 'varemottak']:
         flash('Ugyldig mappe')
         return redirect(request.referrer)
 
@@ -641,6 +716,250 @@ def delete_document(doc_id):
 
     conn.close()
     return redirect(request.referrer or url_for('documents'))
+
+# ========== DOCUMENT TAGS & COMMENTS API ==========
+@app.route('/api/documents/<int:doc_id>/tags', methods=['POST'])
+@auth_required
+def add_document_tag(doc_id):
+    """Add tag to document."""
+    user = get_current_user()
+    data = request.get_json()
+    tag_id = data.get('tag_id')
+
+    if not tag_id:
+        return jsonify({'error': 'Tag ID required'}), 400
+
+    conn = get_db_connection()
+    try:
+        # Check if document exists
+        doc = conn.execute('SELECT id FROM documents WHERE id = ?', (doc_id,)).fetchone()
+        if not doc:
+            return jsonify({'error': 'Document not found'}), 404
+
+        # Add tag relation (ignore if already exists due to UNIQUE constraint)
+        conn.execute('''
+            INSERT OR IGNORE INTO document_tag_relations (document_id, tag_id)
+            VALUES (?, ?)
+        ''', (doc_id, tag_id))
+        conn.commit()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/documents/<int:doc_id>/tags/<int:tag_id>', methods=['DELETE'])
+@auth_required
+def remove_document_tag(doc_id, tag_id):
+    """Remove tag from document."""
+    user = get_current_user()
+
+    conn = get_db_connection()
+    try:
+        conn.execute('''
+            DELETE FROM document_tag_relations
+            WHERE document_id = ? AND tag_id = ?
+        ''', (doc_id, tag_id))
+        conn.commit()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/documents/<int:doc_id>/comments', methods=['GET'])
+@auth_required
+def get_document_comments(doc_id):
+    """Get comments for document."""
+    user = get_current_user()
+
+    conn = get_db_connection()
+    try:
+        comments = conn.execute('''
+            SELECT id, user_name, comment, created_at
+            FROM document_comments
+            WHERE document_id = ?
+            ORDER BY created_at DESC
+        ''', (doc_id,)).fetchall()
+
+        comments_dict = [dict(comment) for comment in comments]
+        return jsonify({'comments': comments_dict})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/documents/<int:doc_id>/comments', methods=['POST'])
+@auth_required
+def add_document_comment(doc_id):
+    """Add comment to document."""
+    user = get_current_user()
+    data = request.get_json()
+    comment_text = data.get('comment', '').strip()
+
+    if not comment_text:
+        return jsonify({'error': 'Comment text required'}), 400
+
+    conn = get_db_connection()
+    try:
+        # Check if document exists
+        doc = conn.execute('SELECT id FROM documents WHERE id = ?', (doc_id,)).fetchone()
+        if not doc:
+            return jsonify({'error': 'Document not found'}), 404
+
+        # Add comment
+        cursor = conn.execute('''
+            INSERT INTO document_comments (document_id, user_email, user_name, comment)
+            VALUES (?, ?, ?, ?)
+        ''', (doc_id, user['email'], user['name'], comment_text))
+
+        comment_id = cursor.lastrowid
+        conn.commit()
+
+        # Return the new comment
+        new_comment = conn.execute('''
+            SELECT id, user_name, comment, created_at
+            FROM document_comments WHERE id = ?
+        ''', (comment_id,)).fetchone()
+
+        return jsonify({'comment': dict(new_comment)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tags', methods=['GET'])
+@auth_required
+def get_all_tags():
+    """Get all available tags."""
+    user = get_current_user()
+
+    conn = get_db_connection()
+    try:
+        tags = conn.execute('SELECT * FROM document_tags ORDER BY name').fetchall()
+        tags_dict = [dict(tag) for tag in tags]
+        return jsonify({'tags': tags_dict})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tags', methods=['POST'])
+@admin_required
+def create_tag():
+    """Create new tag (admin only)."""
+    user = get_current_user()
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    color = data.get('color', '#10B981')
+
+    if not name:
+        return jsonify({'error': 'Tag name required'}), 400
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute('''
+            INSERT INTO document_tags (name, color) VALUES (?, ?)
+        ''', (name, color))
+        tag_id = cursor.lastrowid
+        conn.commit()
+
+        # Return the new tag
+        new_tag = conn.execute('SELECT * FROM document_tags WHERE id = ?', (tag_id,)).fetchone()
+        return jsonify({'tag': dict(new_tag)})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Tag name already exists'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/documents/<folder>/filter')
+@auth_required
+def filter_documents(folder):
+    """Filter documents by tags and search terms."""
+    user = get_current_user()
+    allowed_folders = ['salg', 'verksted', 'hms', 'it', 'varemottak']
+
+    if folder not in allowed_folders:
+        return jsonify({'error': 'Invalid folder'}), 400
+
+    # Get query parameters
+    tag_ids = request.args.getlist('tags')  # List of tag IDs
+    search = request.args.get('search', '').strip()
+    sort_by = request.args.get('sort', 'date')  # date, name, tags
+
+    conn = get_db_connection()
+    try:
+        # Base query
+        query = '''
+            SELECT DISTINCT d.id, d.original_filename, d.filename, d.upload_date, d.uploaded_by_name
+            FROM documents d
+        '''
+        params = []
+
+        # Add tag filtering if specified
+        if tag_ids:
+            placeholders = ','.join('?' * len(tag_ids))
+            query += f'''
+                JOIN document_tag_relations dtr ON d.id = dtr.document_id
+                WHERE d.folder = ? AND dtr.tag_id IN ({placeholders})
+            '''
+            params.append(folder)
+            params.extend(tag_ids)
+        else:
+            query += ' WHERE d.folder = ?'
+            params.append(folder)
+
+        # Add search filtering
+        if search:
+            query += ' AND d.original_filename LIKE ?'
+            params.append(f'%{search}%')
+
+        # Add sorting
+        if sort_by == 'name':
+            query += ' ORDER BY d.original_filename ASC'
+        elif sort_by == 'tags':
+            query += ' ORDER BY d.id ASC'  # Will sort by tag count in post-processing
+        else:  # date
+            query += ' ORDER BY d.upload_date DESC'
+
+        documents_list = conn.execute(query, params).fetchall()
+
+        documents_dict = []
+        for doc in documents_list:
+            doc_dict = dict(doc)
+
+            # Get tags for this document
+            tags = conn.execute('''
+                SELECT dt.id, dt.name, dt.color
+                FROM document_tags dt
+                JOIN document_tag_relations dtr ON dt.id = dtr.tag_id
+                WHERE dtr.document_id = ?
+                ORDER BY dt.name
+            ''', (doc['id'],)).fetchall()
+            doc_dict['tags'] = [dict(tag) for tag in tags]
+
+            # Get comment count for this document
+            comment_count = conn.execute('''
+                SELECT COUNT(*) FROM document_comments WHERE document_id = ?
+            ''', (doc['id'],)).fetchone()[0]
+            doc_dict['comment_count'] = comment_count
+
+            documents_dict.append(doc_dict)
+
+        # Sort by tag count if requested
+        if sort_by == 'tags':
+            documents_dict.sort(key=lambda x: len(x['tags']), reverse=True)
+
+        return jsonify({'documents': documents_dict})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
 
 
 # ========== TASKS ROUTES ==========
