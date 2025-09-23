@@ -411,8 +411,13 @@ def dashboard():
         ORDER BY start_date, start_time LIMIT 5
     ''').fetchall()
 
+    # Convert Row objects to dictionaries for JSON serialization
+    newsletters_dict = [dict(newsletter) for newsletter in newsletters]
+    tasks_dict = [dict(task) for task in tasks]
+    events_dict = [dict(event) for event in events]
+
     conn.close()
-    return render_template('dashboard.html', user=user, newsletters=newsletters, tasks=tasks, events=events)
+    return render_template('dashboard.html', user=user, newsletters=newsletters_dict, tasks=tasks_dict, events=events_dict)
 
 
 # ========== CALENDAR ROUTES ==========
@@ -430,8 +435,11 @@ def calendar():
         FROM calendar_events ORDER BY start_date, start_time
     ''').fetchall()
 
+    # Convert Row objects to dictionaries for JSON serialization
+    events_dict = [dict(event) for event in events]
+
     conn.close()
-    return render_template('calendar.html', user=user, events=events)
+    return render_template('calendar.html', user=user, events=events_dict)
 
 @app.route('/calendar/create', methods=['POST'])
 @auth_required
@@ -482,12 +490,14 @@ def documents(folder=None):
             SELECT id, original_filename, filename, upload_date, uploaded_by_name
             FROM documents WHERE folder = ? ORDER BY upload_date DESC
         ''', (folder,)).fetchall()
+        # Convert Row objects to dictionaries for JSON serialization
+        documents_dict = [dict(doc) for doc in documents_list]
     else:
-        documents_list = []
+        documents_dict = []
 
     conn.close()
     return render_template('documents.html', user=user, current_folder=folder,
-                         documents=documents_list, folders=allowed_folders)
+                         documents=documents_dict, folders=allowed_folders)
 
 @app.route('/documents/upload', methods=['POST'])
 @auth_required
@@ -561,8 +571,11 @@ def tasks():
             created_at DESC
     ''').fetchall()
 
+    # Convert Row objects to dictionaries for JSON serialization
+    tasks_dict = [dict(task) for task in tasks_list]
+
     conn.close()
-    return render_template('tasks.html', user=user, tasks=tasks_list)
+    return render_template('tasks.html', user=user, tasks=tasks_dict)
 
 @app.route('/tasks/create', methods=['POST'])
 @auth_required
@@ -617,8 +630,12 @@ def suppliers():
     user = get_current_user()
     conn = get_db_connection()
     suppliers_list = conn.execute('SELECT id, name, username, password, website FROM suppliers ORDER BY name ASC').fetchall()
+
+    # Convert Row objects to dictionaries for JSON serialization
+    suppliers_dict = [dict(supplier) for supplier in suppliers_list]
+
     conn.close()
-    return render_template('suppliers.html', user=user, suppliers=suppliers_list)
+    return render_template('suppliers.html', user=user, suppliers=suppliers_dict)
 
 @app.route('/suppliers/add', methods=['POST'])
 @auth_required
@@ -684,8 +701,12 @@ def newsletter():
     user = get_current_user()
     conn = get_db_connection()
     newsletters = conn.execute('SELECT id, title, content, sent_date, created_at, created_by_name FROM newsletters ORDER BY created_at DESC').fetchall()
+
+    # Convert Row objects to dictionaries for JSON serialization
+    newsletters_dict = [dict(newsletter) for newsletter in newsletters]
+
     conn.close()
-    return render_template('newsletter.html', user=user, newsletters=newsletters)
+    return render_template('newsletter.html', user=user, newsletters=newsletters_dict)
 
 @app.route('/newsletter/create', methods=['POST'])
 @admin_required
