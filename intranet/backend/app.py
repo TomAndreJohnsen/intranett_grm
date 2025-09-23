@@ -2,13 +2,18 @@
 Main Flask application with Microsoft Entra ID authentication.
 Provides authentication endpoints and user API for intranet application.
 """
-from flask import Flask, request, redirect, url_for, jsonify, session
+from flask import Flask, request, redirect, url_for, jsonify, session, flash
 from flask_session import Session
 import os
 import redis
 import secrets
+import logging
 from config import Config
 from auth import auth_manager, login_required
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def create_app():
@@ -27,10 +32,21 @@ def create_app():
     if Config.SESSION_TYPE == 'redis' and Config.REDIS_URL:
         # Use Redis for session storage (recommended for production)
         app.config['SESSION_REDIS'] = redis.from_url(Config.REDIS_URL)
+        logger.info(f"Using Redis session storage: {Config.REDIS_URL}")
     else:
         # Use filesystem for session storage (development)
-        app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
-        os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+        session_dir = Config.SESSION_FILE_DIR
+        app.config['SESSION_FILE_DIR'] = session_dir
+
+        # Ensure session directory exists
+        try:
+            os.makedirs(session_dir, exist_ok=True)
+            logger.info(f"Session directory created/verified: {session_dir}")
+        except OSError as e:
+            logger.error(f"Failed to create session directory {session_dir}: {e}")
+            raise
+
+        logger.info(f"Using filesystem session storage: {session_dir}")
 
     # Initialize session extension
     Session(app)
@@ -66,6 +82,9 @@ def auth_callback():
     Returns:
         Redirect to dashboard or error response
     """
+    logger.info(f"Auth callback received from: {request.remote_addr}")
+    logger.info(f"Request args: {dict(request.args)}")
+
     # Get authorization code and state from callback
     auth_code = request.args.get('code')
     state = request.args.get('state')
@@ -74,28 +93,37 @@ def auth_callback():
     # Handle OAuth errors
     if error:
         error_description = request.args.get('error_description', 'Unknown error')
-        return jsonify({
-            'error': 'OAuth error',
-            'error_code': error,
-            'description': error_description
-        }), 400
+        logger.error(f"OAuth error received: {error} - {error_description}")
+        flash(f"Login failed: {error_description}", 'error')
+        return redirect('/auth/login')
 
     # Handle missing authorization code
     if not auth_code:
-        return jsonify({'error': 'Missing authorization code'}), 400
+        logger.error("Missing authorization code in callback")
+        flash('Login failed: Missing authorization code', 'error')
+        return redirect('/auth/login')
 
     try:
+        logger.info(f"Processing callback with auth_code present and state: {state}")
+
         # Process the callback and get user info
         user_info = auth_manager.handle_callback(auth_code, state)
 
         if user_info:
-            # Successful authentication - redirect to frontend dashboard
-            return redirect(f"{Config.BASE_URL}/#/dashboard")
+            logger.info(f"Authentication successful for user: {user_info.get('userPrincipalName')}")
+            logger.info(f"Session after successful auth: {list(session.keys())}")
+
+            # Successful authentication - redirect to root which should now redirect to dashboard
+            return redirect('/')
         else:
-            return jsonify({'error': 'Authentication failed'}), 401
+            logger.error("Authentication failed - no user info returned")
+            flash('Login failed: Could not authenticate with Microsoft', 'error')
+            return redirect('/auth/login')
 
     except Exception as e:
-        return jsonify({'error': 'Callback processing failed', 'details': str(e)}), 500
+        logger.error(f"Callback processing failed: {str(e)}")
+        flash(f"Login failed: {str(e)}", 'error')
+        return redirect('/auth/login')
 
 
 @app.route('/auth/logout', methods=['POST'])
@@ -150,6 +178,19 @@ def api_me():
         return jsonify({'error': 'Failed to get user info', 'details': str(e)}), 500
 
 
+@app.route('/')
+def index():
+    """
+    Root endpoint - redirect based on authentication status.
+    """
+    if auth_manager.is_authenticated():
+        logger.info(f"Authenticated user accessing root: {session.get('user', {}).get('userPrincipalName')}")
+        return redirect(f"{Config.BASE_URL}/#/dashboard")
+    else:
+        logger.info("Unauthenticated user accessing root - redirecting to login")
+        return redirect('/auth/login')
+
+
 @app.route('/api/healthz')
 def api_health():
     """
@@ -161,7 +202,8 @@ def api_health():
     return jsonify({
         'status': 'ok',
         'service': 'intranet-auth',
-        'authenticated': auth_manager.is_authenticated()
+        'authenticated': auth_manager.is_authenticated(),
+        'session_keys': list(session.keys())
     })
 
 

@@ -11,18 +11,45 @@ from datetime import datetime
 import json
 from functools import wraps
 from dotenv import load_dotenv
-import uuid
-import msal
-import requests
-import logging
 from config import Config
 
 # Load environment variables
 load_dotenv()
+    SESSION_FILE_THRESHOLD = int(os.environ.get('SESSION_FILE_THRESHOLD', 500))
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    # Microsoft Graph API scopes
+    SCOPES = [
+        "https://graph.microsoft.com/User.Read"
+    ]
+
+    # Microsoft endpoints
+    AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+
+    @classmethod
+    def validate_config(cls):
+        """Validate that all required configuration is present and properly typed."""
+        # Check required MS variables
+        required_vars = ['CLIENT_ID', 'CLIENT_SECRET', 'TENANT_ID']
+        missing_vars = []
+
+        for var in required_vars:
+            if not getattr(cls, var):
+                missing_vars.append(f'MS_{var}')
+
+        if missing_vars:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
+        # Validate SECRET_KEY
+        if not cls.SECRET_KEY or cls.SECRET_KEY == 'dev-secret-key-change-in-production':
+            raise ValueError("FLASK_SECRET_KEY must be set to a secure random string in production")
+
+        if not isinstance(cls.SECRET_KEY, str):
+            raise TypeError(f"FLASK_SECRET_KEY must be a string, got {type(cls.SECRET_KEY)}")
+
+        if len(cls.SECRET_KEY) < 32:
+            raise ValueError("FLASK_SECRET_KEY should be at least 32 characters long")
+
+        return True
 
 
 # Authentication Manager
@@ -60,59 +87,38 @@ class AuthManager:
         state = str(uuid.uuid4())
         session['auth_state'] = state
 
-        # Get dynamic redirect URI based on current request
-        redirect_uri = Config.get_redirect_uri()
-        logger.info(f"Using redirect_uri: {redirect_uri}")
-
         # Build authorization URL
         auth_url = self.msal_app.get_authorization_request_url(
             scopes=list(Config.SCOPES),
             state=state,
-            redirect_uri=redirect_uri
+            redirect_uri=Config.REDIRECT_URI
         )
 
-        logger.info(f"Generated auth URL with state: {state}")
         return auth_url, state
 
     def handle_callback(self, auth_code, state):
         """Handle the OAuth callback from Microsoft."""
-        logger.info(f"Starting callback handling with state: {state}")
-        logger.info(f"Session auth_state: {session.get('auth_state')}")
-
         # Ensure MSAL client is initialized
         self._ensure_initialized()
 
         # Verify state parameter to prevent CSRF attacks
         if state != session.get('auth_state'):
-            logger.error(f"State mismatch - received: {state}, expected: {session.get('auth_state')}")
             return None
-
-        # Get dynamic redirect URI (same as used in auth URL)
-        redirect_uri = Config.get_redirect_uri()
-        logger.info(f"Using redirect_uri for token exchange: {redirect_uri}")
 
         # Exchange authorization code for access token
         result = self.msal_app.acquire_token_by_authorization_code(
             auth_code,
             scopes=list(Config.SCOPES),
-            redirect_uri=redirect_uri
+            redirect_uri=Config.REDIRECT_URI
         )
 
-        logger.info(f"Token exchange result keys: {list(result.keys())}")
-
         if 'error' in result:
-            error_msg = result.get('error_description', result.get('error', 'Unknown error'))
-            logger.error(f"Token exchange failed: {error_msg}")
             return None
-
-        logger.info("Token exchange successful")
 
         # Store tokens in session
         session['access_token'] = result.get('access_token')
         session['id_token'] = result.get('id_token')
         session['user_id'] = result.get('id_token_claims', {}).get('oid')
-
-        logger.info(f"Stored tokens in session. User ID: {session.get('user_id')}")
 
         # Fetch user profile from Microsoft Graph
         user_info = self.get_user_profile(result.get('access_token'))
@@ -121,28 +127,14 @@ class AuthManager:
             session['user'] = user_info
             session['is_admin'] = user_info.get('userPrincipalName', '').lower() in [upn.lower() for upn in Config.ADMIN_UPNS]
 
-            logger.info(f"User profile stored in session: {user_info.get('userPrincipalName')}")
-            logger.info(f"User is admin: {session.get('is_admin')}")
-
-            # Ensure session is saved
-            session.permanent = True
-        else:
-            logger.error("Failed to fetch user profile from Microsoft Graph")
-
         # Clear the auth state
         session.pop('auth_state', None)
-
-        logger.info("Session after callback processing:")
-        logger.info(f"  - user present: {'user' in session}")
-        logger.info(f"  - access_token present: {'access_token' in session}")
-        logger.info(f"  - session keys: {list(session.keys())}")
 
         return user_info
 
     def get_user_profile(self, access_token):
         """Fetch user profile from Microsoft Graph API."""
         if not access_token:
-            logger.error("No access token provided for user profile fetch")
             return None
 
         # Microsoft Graph API endpoint for user profile
@@ -153,14 +145,10 @@ class AuthManager:
         }
 
         try:
-            logger.info("Fetching user profile from Microsoft Graph")
             response = requests.get(graph_url, headers=headers, timeout=10)
             response.raise_for_status()
-            user_data = response.json()
-            logger.info(f"Successfully fetched profile for: {user_data.get('userPrincipalName')}")
-            return user_data
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch user profile: {str(e)}")
+            return response.json()
+        except requests.RequestException:
             return None
 
     def logout(self):
@@ -191,24 +179,13 @@ app.config.from_object(Config)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
 # Configure session management
-if Config.SESSION_TYPE == 'redis' and Config.REDIS_URL:
+if Config.SESSION_TYPE == 'redis' and os.environ.get('REDIS_URL'):
     import redis
-    app.config['SESSION_REDIS'] = redis.from_url(Config.REDIS_URL)
-    logger.info(f"Using Redis session storage: {Config.REDIS_URL}")
+    app.config['SESSION_REDIS'] = redis.from_url(os.environ.get('REDIS_URL'))
 else:
     # Use filesystem for session storage (development)
-    session_dir = Config.SESSION_FILE_DIR
-    app.config['SESSION_FILE_DIR'] = session_dir
-
-    # Ensure session directory exists
-    try:
-        os.makedirs(session_dir, exist_ok=True)
-        logger.info(f"Session directory created/verified: {session_dir}")
-    except OSError as e:
-        logger.error(f"Failed to create session directory {session_dir}: {e}")
-        raise
-
-    logger.info(f"Using filesystem session storage: {session_dir}")
+    app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+    os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
 
 # Initialize session extension
 Session(app)
@@ -401,9 +378,6 @@ def auth_login():
 @app.route('/auth/callback')
 def auth_callback():
     """Handle OAuth callback from Microsoft Entra ID."""
-    logger.info(f"Auth callback received from: {request.remote_addr}")
-    logger.info(f"Request args: {dict(request.args)}")
-
     # Get authorization code and state from callback
     auth_code = request.args.get('code')
     state = request.args.get('state')
@@ -412,36 +386,27 @@ def auth_callback():
     # Handle OAuth errors
     if error:
         error_description = request.args.get('error_description', 'Unknown error')
-        logger.error(f"OAuth error received: {error} - {error_description}")
         flash(f'Login error: {error_description}')
         return redirect(url_for('home'))
 
     # Handle missing authorization code
     if not auth_code:
-        logger.error("Missing authorization code in callback")
         flash('Missing authorization code')
         return redirect(url_for('home'))
 
     try:
-        logger.info(f"Processing callback with auth_code present and state: {state}")
-
         # Process the callback and get user info
         user_info = auth_manager.handle_callback(auth_code, state)
 
         if user_info:
-            logger.info(f"Authentication successful for user: {user_info.get('userPrincipalName')}")
-            logger.info(f"Session after successful auth: {list(session.keys())}")
-
             # Successful authentication - redirect to dashboard
             flash(f'Welcome, {user_info.get("displayName", "User")}!')
             return redirect(url_for('dashboard'))
         else:
-            logger.error("Authentication failed - no user info returned")
             flash('Authentication failed')
             return redirect(url_for('home'))
 
     except Exception as e:
-        logger.error(f"Callback processing failed: {str(e)}")
         flash(f'Callback processing failed: {str(e)}')
         return redirect(url_for('home'))
 
@@ -508,11 +473,8 @@ def home():
     """Home page."""
     user = get_current_user()
     if user:
-        logger.info(f"Authenticated user accessing root: {user.get('userPrincipalName')}")
         return redirect(url_for('dashboard'))
-    else:
-        logger.info("Unauthenticated user accessing root - showing login page")
-        return render_template('base.html', user=user)
+    return render_template('base.html', user=user)
 
 
 @app.route('/dashboard')
@@ -1005,14 +967,10 @@ def internal_error(error):
 if __name__ == '__main__':
     init_db()
     try:
-        # Validate configuration
-        Config.validate_config()
-
         print("Starting GRM Intranet with integrated authentication...")
         print(f"Base URL: {Config.BASE_URL}")
         print(f"Session type: {Config.SESSION_TYPE}")
         print(f"Admin users: {len(Config.ADMIN_UPNS)} configured")
-        print(f"Session directory: {Config.SESSION_FILE_DIR}")
 
         app.run(debug=True, host='0.0.0.0', port=5000)
     except ValueError as e:

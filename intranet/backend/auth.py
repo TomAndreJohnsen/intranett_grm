@@ -5,9 +5,15 @@ Handles OAuth2 flow, token management, and user session management.
 import uuid
 import msal
 import requests
-from flask import session, request, url_for, redirect, jsonify
+import logging
+import os
+from flask import session, request, url_for, redirect, jsonify, flash
 from functools import wraps
 from config import Config
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class AuthManager:
@@ -49,13 +55,18 @@ class AuthManager:
         state = str(uuid.uuid4())
         session['auth_state'] = state
 
+        # Get dynamic redirect URI based on current request
+        redirect_uri = Config.get_redirect_uri()
+        logger.info(f"Using redirect_uri: {redirect_uri}")
+
         # Build authorization URL
         auth_url = self.msal_app.get_authorization_request_url(
             scopes=list(Config.SCOPES),
             state=state,
-            redirect_uri=Config.REDIRECT_URI
+            redirect_uri=redirect_uri
         )
 
+        logger.info(f"Generated auth URL with state: {state}")
         return auth_url, state
 
     def handle_callback(self, auth_code, state):
@@ -69,27 +80,43 @@ class AuthManager:
         Returns:
             dict: User information if successful, None if failed
         """
+        logger.info(f"Starting callback handling with state: {state}")
+        logger.info(f"Session auth_state: {session.get('auth_state')}")
+
         # Ensure MSAL client is initialized
         self._ensure_initialized()
 
         # Verify state parameter to prevent CSRF attacks
         if state != session.get('auth_state'):
+            logger.error(f"State mismatch - received: {state}, expected: {session.get('auth_state')}")
             return None
+
+        # Get dynamic redirect URI (same as used in auth URL)
+        redirect_uri = Config.get_redirect_uri()
+        logger.info(f"Using redirect_uri for token exchange: {redirect_uri}")
 
         # Exchange authorization code for access token
         result = self.msal_app.acquire_token_by_authorization_code(
             auth_code,
             scopes=list(Config.SCOPES),
-            redirect_uri=Config.REDIRECT_URI
+            redirect_uri=redirect_uri
         )
 
+        logger.info(f"Token exchange result keys: {list(result.keys())}")
+
         if 'error' in result:
+            error_msg = result.get('error_description', result.get('error', 'Unknown error'))
+            logger.error(f"Token exchange failed: {error_msg}")
             return None
+
+        logger.info("Token exchange successful")
 
         # Store tokens in session
         session['access_token'] = result.get('access_token')
         session['id_token'] = result.get('id_token')
         session['user_id'] = result.get('id_token_claims', {}).get('oid')
+
+        logger.info(f"Stored tokens in session. User ID: {session.get('user_id')}")
 
         # Fetch user profile from Microsoft Graph
         user_info = self.get_user_profile(result.get('access_token'))
@@ -98,8 +125,21 @@ class AuthManager:
             session['user'] = user_info
             session['is_admin'] = user_info.get('userPrincipalName', '').lower() in [upn.lower() for upn in Config.ADMIN_UPNS]
 
+            logger.info(f"User profile stored in session: {user_info.get('userPrincipalName')}")
+            logger.info(f"User is admin: {session.get('is_admin')}")
+
+            # Ensure session is saved
+            session.permanent = True
+        else:
+            logger.error("Failed to fetch user profile from Microsoft Graph")
+
         # Clear the auth state
         session.pop('auth_state', None)
+
+        logger.info("Session after callback processing:")
+        logger.info(f"  - user present: {'user' in session}")
+        logger.info(f"  - access_token present: {'access_token' in session}")
+        logger.info(f"  - session keys: {list(session.keys())}")
 
         return user_info
 
@@ -114,6 +154,7 @@ class AuthManager:
             dict: User profile information
         """
         if not access_token:
+            logger.error("No access token provided for user profile fetch")
             return None
 
         # Microsoft Graph API endpoint for user profile
@@ -124,10 +165,14 @@ class AuthManager:
         }
 
         try:
+            logger.info("Fetching user profile from Microsoft Graph")
             response = requests.get(graph_url, headers=headers, timeout=10)
             response.raise_for_status()
-            return response.json()
-        except requests.RequestException:
+            user_data = response.json()
+            logger.info(f"Successfully fetched profile for: {user_data.get('userPrincipalName')}")
+            return user_data
+        except requests.RequestException as e:
+            logger.error(f"Failed to fetch user profile: {str(e)}")
             return None
 
     def refresh_token(self):

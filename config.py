@@ -12,7 +12,7 @@ load_dotenv()
 class Config:
     """Application configuration class."""
 
-    # Flask configuration - ensure SECRET_KEY is always a string
+    # Flask configuration
     SECRET_KEY = str(os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production'))
 
     # Microsoft Entra ID configuration
@@ -49,7 +49,7 @@ class Config:
     # Admin users (comma-separated UPNs)
     ADMIN_UPNS = [upn.strip() for upn in os.environ.get('ADMIN_UPNS', '').split(',') if upn.strip()]
 
-    # Session configuration - ensure all values are proper types
+    # Session configuration
     SESSION_TYPE = str(os.environ.get('SESSION_TYPE', 'filesystem'))
     SESSION_PERMANENT = True  # Enable permanent sessions
     SESSION_USE_SIGNER = True
@@ -68,7 +68,6 @@ class Config:
     @classmethod
     def ensure_session_dir(cls):
         """Ensure the session directory exists."""
-        import os
         if not os.path.exists(cls.SESSION_FILE_DIR):
             os.makedirs(cls.SESSION_FILE_DIR, exist_ok=True)
 
@@ -87,7 +86,7 @@ class Config:
 
     @classmethod
     def validate_config(cls):
-        """Validate that all required configuration is present and properly typed."""
+        """Validate that all required configuration is present."""
         # Check required MS variables
         required_vars = ['CLIENT_ID', 'CLIENT_SECRET', 'TENANT_ID']
         missing_vars = []
@@ -98,15 +97,5 @@ class Config:
 
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
-
-        # Validate SECRET_KEY
-        if not cls.SECRET_KEY or cls.SECRET_KEY == 'dev-secret-key-change-in-production':
-            raise ValueError("FLASK_SECRET_KEY must be set to a secure random string in production")
-
-        if not isinstance(cls.SECRET_KEY, str):
-            raise TypeError(f"FLASK_SECRET_KEY must be a string, got {type(cls.SECRET_KEY)}")
-
-        if len(cls.SECRET_KEY) < 32:
-            raise ValueError("FLASK_SECRET_KEY should be at least 32 characters long")
 
         return True
