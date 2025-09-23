@@ -55,6 +55,27 @@
                         <p>Dra og slipp filer her eller <label for="file-input" class="file-label">bla gjennom</label></p>
                         <input type="file" id="file-input" name="file" style="display: none;" required>
                     </div>
+
+                    <!-- Tags Selection -->
+                    <div class="upload-meta">
+                        <div class="meta-section">
+                            <label>Tags:</label>
+                            <div class="tag-input-container">
+                                <div id="selectedTags" class="selected-tags"></div>
+                                <button type="button" class="add-tag-btn" onclick="showTagModal()">
+                                    <i class="fas fa-plus"></i>
+                                    Legg til tag
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Comment Field -->
+                        <div class="meta-section">
+                            <label for="upload-comment">Kommentar (valgfritt):</label>
+                            <textarea id="upload-comment" name="comment" placeholder="Skriv en kommentar om dokumentet..." rows="2"></textarea>
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn-primary">
                         <i class="fas fa-upload"></i>
                         Last opp
@@ -104,7 +125,6 @@
                 <div class="table-header">
                     <div class="col-name">Filnavn</div>
                     <div class="col-tags">Tags</div>
-                    <div class="col-comments">Kommentarer</div>
                     <div class="col-date">Opplastet</div>
                     <div class="col-user">Av</div>
                     <div class="col-actions">Handlinger</div>
@@ -116,6 +136,11 @@
                         <div class="file-info">
                             <i class="fas fa-file{% if doc['original_filename'].endswith('.pdf') %}-pdf{% elif doc['original_filename'].endswith(('.jpg', '.jpeg', '.png', '.gif')) %}-image{% elif doc['original_filename'].endswith(('.doc', '.docx')) %}-word{% elif doc['original_filename'].endswith(('.xls', '.xlsx')) %}-excel{% endif %}"></i>
                             <span>{{ doc['original_filename'] }}</span>
+                            {% if doc['has_comment'] %}
+                            <button class="comment-indicator" onclick="showCommentModal({{ doc['id'] }}, '{{ doc['original_filename'] }}', '{{ doc['comment'] }}', '{{ doc['uploaded_by_email'] }}', {{ (user and (user.is_admin or doc['uploaded_by_email'] == user.mail))|lower }})" title="Vis kommentar">
+                                <i class="fas fa-question-circle"></i>
+                            </button>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="col-tags">
@@ -123,19 +148,17 @@
                             {% for tag in doc['tags'] %}
                             <span class="tag" style="background-color: {{ tag['color'] }}20; color: {{ tag['color'] }}; border: 1px solid {{ tag['color'] }}">
                                 {{ tag['name'] }}
+                                {% if user and (user.is_admin or doc['uploaded_by_email'] == user.mail) %}
                                 <button class="tag-remove" onclick="removeTag({{ doc['id'] }}, {{ tag['id'] }})" title="Fjern tag">×</button>
+                                {% endif %}
                             </span>
                             {% endfor %}
+                            {% if user and (user.is_admin or doc['uploaded_by_email'] == user.mail) %}
                             <button class="tag-add-btn" onclick="showTagSelector({{ doc['id'] }})" title="Legg til tag">
                                 <i class="fas fa-plus"></i>
                             </button>
+                            {% endif %}
                         </div>
-                    </div>
-                    <div class="col-comments">
-                        <button class="comments-btn" onclick="openCommentsModal({{ doc['id'] }}, '{{ doc['original_filename'] }}')" title="Se kommentarer">
-                            <i class="fas fa-comments"></i>
-                            <span class="comment-count">{{ doc['comment_count'] }}</span>
-                        </button>
                     </div>
                     <div class="col-date">{{ doc['upload_date'] }}</div>
                     <div class="col-user">{{ doc['uploaded_by_name'] }}</div>
@@ -172,51 +195,85 @@
     {% endif %}
 </div>
 
-<!-- Tag Selector Modal -->
-<div id="tagSelectorModal" class="modal" style="display: none;">
+<!-- Tag Modal for Upload -->
+<div id="tagModal" class="modal" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Legg til tag</h3>
-            <button class="close-btn" onclick="closeTagSelector()">
+            <h3>Velg Tags</h3>
+            <button class="close-btn" onclick="closeTagModal()">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         <div class="modal-body">
-            <p>Velg tags for dokumentet:</p>
-            <div class="tag-selector">
-                {% for tag in all_tags %}
-                <div class="tag-option" data-tag-id="{{ tag['id'] }}" onclick="selectTag({{ tag['id'] }})"
-                     style="background-color: {{ tag['color'] }}20; color: {{ tag['color'] }}; border: 1px solid {{ tag['color'] }}">
-                    {{ tag['name'] }}
+            <!-- Create New Tag Section -->
+            <div class="create-tag-section">
+                <h4>Opprett ny tag</h4>
+                <div class="create-tag-form">
+                    <input type="text" id="newTagName" placeholder="Tag navn" maxlength="30">
+                    <div class="color-picker">
+                        <span>Farge:</span>
+                        <div class="color-options">
+                            <div class="color-option" data-color="#3B82F6" style="background: #3B82F6;" title="Blå"></div>
+                            <div class="color-option" data-color="#10B981" style="background: #10B981;" title="Grønn"></div>
+                            <div class="color-option" data-color="#EF4444" style="background: #EF4444;" title="Rød"></div>
+                            <div class="color-option" data-color="#F59E0B" style="background: #F59E0B;" title="Gul"></div>
+                            <div class="color-option" data-color="#8B5CF6" style="background: #8B5CF6;" title="Lilla"></div>
+                            <div class="color-option" data-color="#EC4899" style="background: #EC4899;" title="Rosa"></div>
+                            <div class="color-option" data-color="#6B7280" style="background: #6B7280;" title="Grå"></div>
+                            <div class="color-option" data-color="#6366F1" style="background: #6366F1;" title="Indigo"></div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="createNewTag()" class="btn-secondary">
+                        <i class="fas fa-plus"></i>
+                        Opprett tag
+                    </button>
                 </div>
-                {% endfor %}
+            </div>
+
+            <hr>
+
+            <!-- Existing Tags Section -->
+            <div class="existing-tags-section">
+                <h4>Velg eksisterende tags</h4>
+                <div id="existingTags" class="tag-selector">
+                    {% for tag in all_tags %}
+                    <div class="tag-option" data-tag-id="{{ tag['id'] }}" data-tag-name="{{ tag['name'] }}" onclick="toggleTagSelection({{ tag['id'] }}, '{{ tag['name'] }}', '{{ tag['color'] }}')"
+                         style="background-color: {{ tag['color'] }}20; color: {{ tag['color'] }}; border: 1px solid {{ tag['color'] }}">
+                        {{ tag['name'] }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" onclick="closeTagModal()" class="btn-secondary">Ferdig</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Comments Modal -->
-<div id="commentsModal" class="modal" style="display: none;">
+<!-- Comment Modal -->
+<div id="commentModal" class="modal" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Kommentarer - <span id="commentsFileName"></span></h3>
-            <button class="close-btn" onclick="closeCommentsModal()">
+            <h3>Kommentar - <span id="commentFileName"></span></h3>
+            <button class="close-btn" onclick="closeCommentModal()">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         <div class="modal-body">
-            <!-- Comments List -->
-            <div id="commentsList" class="comments-list">
-                <!-- Comments will be loaded here -->
-            </div>
-
-            <!-- Add Comment Form -->
-            <div class="add-comment">
-                <textarea id="newCommentText" placeholder="Skriv en kommentar..." rows="3"></textarea>
-                <button onclick="addComment()" class="btn-primary">
-                    <i class="fas fa-paper-plane"></i>
-                    Send kommentar
-                </button>
+            <div id="commentDisplay" class="comment-display">
+                <p id="commentText"></p>
+                <div id="commentEditSection" style="display: none;">
+                    <textarea id="editCommentText" rows="3"></textarea>
+                    <div class="modal-actions">
+                        <button onclick="saveComment()" class="btn-primary">Lagre</button>
+                        <button onclick="cancelEditComment()" class="btn-secondary">Avbryt</button>
+                    </div>
+                </div>
+                <div id="commentActions" class="comment-actions">
+                    <!-- Edit button will be added here if user has permission -->
+                </div>
             </div>
         </div>
     </div>
@@ -401,7 +458,7 @@
 
 .table-header, .table-row {
     display: grid;
-    grid-template-columns: 2fr 1.5fr 120px 120px 100px 120px;
+    grid-template-columns: 2fr 1.5fr 120px 100px 120px;
     gap: 16px;
     padding: 16px 20px;
     align-items: center;
@@ -752,6 +809,176 @@
     margin-left: auto;
 }
 
+/* Upload Form Styling */
+.upload-meta {
+    margin: 20px 0;
+    padding: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+}
+
+.meta-section {
+    margin-bottom: 16px;
+}
+
+.meta-section:last-child {
+    margin-bottom: 0;
+}
+
+.meta-section label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.tag-input-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.selected-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.selected-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.selected-tag .remove-tag {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+    font-size: 14px;
+    opacity: 0.7;
+}
+
+.selected-tag .remove-tag:hover {
+    opacity: 1;
+}
+
+.add-tag-btn {
+    background: var(--bg-primary);
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-tag-btn:hover {
+    border-color: var(--primary-green);
+    color: var(--primary-green);
+}
+
+.meta-section textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+/* Tag Modal Styling */
+.create-tag-section {
+    margin-bottom: 20px;
+}
+
+.create-tag-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.create-tag-form input {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.color-picker {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.color-options {
+    display: flex;
+    gap: 8px;
+}
+
+.color-option {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.color-option:hover, .color-option.selected {
+    border-color: var(--text-primary);
+    transform: scale(1.1);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+/* Comment Indicator */
+.comment-indicator {
+    background: none;
+    border: none;
+    color: #3B82F6;
+    cursor: pointer;
+    font-size: 14px;
+    margin-left: 8px;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.comment-indicator:hover {
+    background: var(--light-green);
+    color: var(--primary-green);
+}
+
+/* Comment Display */
+.comment-display {
+    min-height: 60px;
+}
+
+.comment-actions {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.comment-actions button {
+    margin-right: 8px;
+}
+
 @media (max-width: 768px) {
     .folders-grid {
         grid-template-columns: 1fr;
@@ -786,6 +1013,11 @@
 
 {% block scripts %}
 <script>
+// Global variables
+let selectedTags = [];
+let selectedColor = '#3B82F6';
+let currentCommentDocId = null;
+
 document.addEventListener('DOMContentLoaded', function() {
     // File input change handler
     const fileInput = document.getElementById('file-input');
@@ -842,7 +1074,252 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    // Color picker initialization
+    document.querySelectorAll('.color-option').forEach(option => {
+        option.addEventListener('click', function() {
+            document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+            this.classList.add('selected');
+            selectedColor = this.getAttribute('data-color');
+        });
+    });
+
+    // Set default color selection
+    if (document.querySelector('.color-option')) {
+        document.querySelector('.color-option').classList.add('selected');
+    }
+
+    // Close modals when clicking outside
+    window.addEventListener('click', function(event) {
+        const tagModal = document.getElementById('tagModal');
+        const commentModal = document.getElementById('commentModal');
+
+        if (event.target === tagModal) {
+            closeTagModal();
+        }
+        if (event.target === commentModal) {
+            closeCommentModal();
+        }
+    });
+
+    // Update form submission to include selected tags
+    const uploadForm = document.querySelector('.upload-form');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            // Add hidden inputs for selected tags
+            selectedTags.forEach(tag => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'tags';
+                input.value = tag.id;
+                this.appendChild(input);
+            });
+        });
+    }
 });
+
+// Tag Management Functions
+function showTagModal() {
+    document.getElementById('tagModal').style.display = 'block';
+}
+
+function closeTagModal() {
+    document.getElementById('tagModal').style.display = 'none';
+    document.getElementById('newTagName').value = '';
+    // Clear current document context
+    window.currentDocumentForTagging = null;
+}
+
+function toggleTagSelection(tagId, tagName, tagColor) {
+    // Check if we're in upload mode or editing existing document
+    if (window.currentDocumentForTagging) {
+        // Adding tag to existing document
+        fetch(`/api/documents/${window.currentDocumentForTagging}/tags`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ tag_id: tagId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                location.reload();
+            } else {
+                alert('Feil ved tillegg av tag: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Feil ved tillegg av tag');
+        });
+    } else {
+        // Upload mode - add to selected tags for form submission
+        const existingIndex = selectedTags.findIndex(tag => tag.id === tagId);
+
+        if (existingIndex !== -1) {
+            // Remove tag
+            selectedTags.splice(existingIndex, 1);
+        } else {
+            // Add tag
+            selectedTags.push({
+                id: tagId,
+                name: tagName,
+                color: tagColor
+            });
+        }
+
+        updateSelectedTagsDisplay();
+        updateTagOptionsDisplay();
+    }
+}
+
+function updateSelectedTagsDisplay() {
+    const container = document.getElementById('selectedTags');
+    container.innerHTML = selectedTags.map(tag => `
+        <span class="selected-tag" style="background-color: ${tag.color}20; color: ${tag.color}; border: 1px solid ${tag.color}">
+            ${tag.name}
+            <button type="button" class="remove-tag" onclick="removeSelectedTag(${tag.id})">×</button>
+        </span>
+    `).join('');
+}
+
+function updateTagOptionsDisplay() {
+    document.querySelectorAll('.tag-option').forEach(option => {
+        const tagId = parseInt(option.getAttribute('data-tag-id'));
+        const isSelected = selectedTags.some(tag => tag.id === tagId);
+        option.classList.toggle('selected', isSelected);
+    });
+}
+
+function removeSelectedTag(tagId) {
+    selectedTags = selectedTags.filter(tag => tag.id !== tagId);
+    updateSelectedTagsDisplay();
+    updateTagOptionsDisplay();
+}
+
+function createNewTag() {
+    const nameInput = document.getElementById('newTagName');
+    const name = nameInput.value.trim();
+
+    if (!name) {
+        alert('Vennligst skriv inn et navn for taggen');
+        return;
+    }
+
+    fetch('/api/tags', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            name: name,
+            color: selectedColor
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Add to existing tags list
+            const tagOption = document.createElement('div');
+            tagOption.className = 'tag-option';
+            tagOption.setAttribute('data-tag-id', data.tag.id);
+            tagOption.setAttribute('data-tag-name', data.tag.name);
+            tagOption.style.cssText = `background-color: ${data.tag.color}20; color: ${data.tag.color}; border: 1px solid ${data.tag.color}`;
+            tagOption.textContent = data.tag.name;
+            tagOption.onclick = function() {
+                toggleTagSelection(data.tag.id, data.tag.name, data.tag.color);
+            };
+            document.getElementById('existingTags').appendChild(tagOption);
+
+            // Select the new tag
+            toggleTagSelection(data.tag.id, data.tag.name, data.tag.color);
+
+            // Clear form
+            nameInput.value = '';
+        } else {
+            alert('Feil ved oppretting av tag: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Feil ved oppretting av tag');
+    });
+}
+
+// Comment Management Functions
+function showCommentModal(docId, filename, comment, uploaderEmail, canEdit) {
+    currentCommentDocId = docId;
+    document.getElementById('commentFileName').textContent = filename;
+    document.getElementById('commentText').textContent = comment || 'Ingen kommentar';
+
+    // Show edit button only if user has permission
+    const commentActions = document.getElementById('commentActions');
+    commentActions.innerHTML = '';
+
+    if (canEdit) {
+        const editBtn = document.createElement('button');
+        editBtn.textContent = 'Rediger kommentar';
+        editBtn.className = 'btn-secondary';
+        editBtn.onclick = startEditComment;
+        commentActions.appendChild(editBtn);
+    }
+
+    document.getElementById('commentModal').style.display = 'block';
+}
+
+function closeCommentModal() {
+    document.getElementById('commentModal').style.display = 'none';
+    currentCommentDocId = null;
+    cancelEditComment();
+}
+
+function startEditComment() {
+    const commentText = document.getElementById('commentText').textContent;
+    const editTextarea = document.getElementById('editCommentText');
+
+    editTextarea.value = commentText === 'Ingen kommentar' ? '' : commentText;
+
+    document.getElementById('commentText').style.display = 'none';
+    document.getElementById('commentActions').style.display = 'none';
+    document.getElementById('commentEditSection').style.display = 'block';
+}
+
+function cancelEditComment() {
+    document.getElementById('commentText').style.display = 'block';
+    document.getElementById('commentActions').style.display = 'block';
+    document.getElementById('commentEditSection').style.display = 'none';
+}
+
+function saveComment() {
+    const newComment = document.getElementById('editCommentText').value.trim();
+
+    fetch(`/api/documents/${currentCommentDocId}/comment`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            comment: newComment
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('commentText').textContent = newComment || 'Ingen kommentar';
+            cancelEditComment();
+
+            // Update the comment indicator in the table
+            location.reload(); // Simple reload for now
+        } else {
+            alert('Feil ved lagring av kommentar: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Feil ved lagring av kommentar');
+    });
+}
 
 function deleteDocument(docId) {
     if (confirm('Er du sikker på at du vil slette dette dokumentet?')) {
@@ -855,12 +1332,8 @@ function deleteDocument(docId) {
     }
 }
 
-// Tag Management
-let currentDocumentId = null;
-
+// Tag management for existing documents
 function showTagSelector(docId) {
-    currentDocumentId = docId;
-
     // Get current tags for this document
     const row = document.querySelector(`[data-doc-id="${docId}"]`);
     const currentTags = Array.from(row.querySelectorAll('.tag')).map(tag => {
@@ -878,43 +1351,9 @@ function showTagSelector(docId) {
         }
     });
 
-    document.getElementById('tagSelectorModal').style.display = 'block';
-}
-
-function closeTagSelector() {
-    document.getElementById('tagSelectorModal').style.display = 'none';
-    currentDocumentId = null;
-}
-
-function selectTag(tagId) {
-    const tagOption = document.querySelector(`[data-tag-id="${tagId}"]`);
-    if (tagOption.classList.contains('selected')) {
-        return; // Already selected
-    }
-
-    if (!currentDocumentId) return;
-
-    // Add tag via API
-    fetch(`/api/documents/${currentDocumentId}/tags`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tag_id: tagId })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // Reload page to show updated tags
-            location.reload();
-        } else {
-            alert('Feil ved tillegg av tag: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Feil ved tillegg av tag');
-    });
+    // Set current document for tag operations
+    window.currentDocumentForTagging = docId;
+    document.getElementById('tagModal').style.display = 'block';
 }
 
 function removeTag(docId, tagId) {
@@ -928,7 +1367,6 @@ function removeTag(docId, tagId) {
     .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
-            // Reload page to show updated tags
             location.reload();
         } else {
             alert('Feil ved fjerning av tag: ' + data.message);
@@ -938,167 +1376,6 @@ function removeTag(docId, tagId) {
         console.error('Error:', error);
         alert('Feil ved fjerning av tag');
     });
-}
-
-// Comments Management
-let currentCommentsDocId = null;
-
-function openCommentsModal(docId, filename) {
-    currentCommentsDocId = docId;
-    document.getElementById('commentsFileName').textContent = filename;
-    loadComments(docId);
-    document.getElementById('commentsModal').style.display = 'block';
-}
-
-function closeCommentsModal() {
-    document.getElementById('commentsModal').style.display = 'none';
-    currentCommentsDocId = null;
-}
-
-function loadComments(docId) {
-    fetch(`/api/documents/${docId}/comments`)
-    .then(response => response.json())
-    .then(data => {
-        const commentsList = document.getElementById('commentsList');
-
-        if (data.comments && data.comments.length > 0) {
-            commentsList.innerHTML = data.comments.map(comment => `
-                <div class="comment-item">
-                    <div class="comment-header">
-                        <span class="comment-author">${comment.user_name}</span>
-                        <span class="comment-date">${comment.created_at}</span>
-                    </div>
-                    <div class="comment-text">${comment.comment}</div>
-                </div>
-            `).join('');
-        } else {
-            commentsList.innerHTML = '<div class="comment-item"><div class="comment-text" style="color: var(--text-secondary); font-style: italic;">Ingen kommentarer ennå</div></div>';
-        }
-    })
-    .catch(error => {
-        console.error('Error loading comments:', error);
-        document.getElementById('commentsList').innerHTML = '<div class="comment-item"><div class="comment-text" style="color: var(--text-secondary);">Feil ved lasting av kommentarer</div></div>';
-    });
-}
-
-function addComment() {
-    const textarea = document.getElementById('newCommentText');
-    const comment = textarea.value.trim();
-
-    if (!comment) {
-        alert('Vennligst skriv en kommentar');
-        return;
-    }
-
-    if (!currentCommentsDocId) return;
-
-    fetch(`/api/documents/${currentCommentsDocId}/comments`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ comment: comment })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            textarea.value = '';
-            loadComments(currentCommentsDocId);
-            // Update comment count in the table
-            const commentBtn = document.querySelector(`[data-doc-id="${currentCommentsDocId}"] .comment-count`);
-            if (commentBtn) {
-                const currentCount = parseInt(commentBtn.textContent) || 0;
-                commentBtn.textContent = currentCount + 1;
-            }
-        } else {
-            alert('Feil ved tillegg av kommentar: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Feil ved tillegg av kommentar');
-    });
-}
-
-// Filtering and Sorting
-document.addEventListener('DOMContentLoaded', function() {
-    // Tag filter functionality
-    const tagFilter = document.getElementById('tagFilter');
-    if (tagFilter) {
-        tagFilter.addEventListener('change', filterDocuments);
-    }
-
-    // Sort functionality
-    const sortBy = document.getElementById('sortBy');
-    if (sortBy) {
-        sortBy.addEventListener('change', sortDocuments);
-    }
-
-    // Close modals when clicking outside
-    window.addEventListener('click', function(event) {
-        const tagModal = document.getElementById('tagSelectorModal');
-        const commentsModal = document.getElementById('commentsModal');
-
-        if (event.target === tagModal) {
-            closeTagSelector();
-        }
-        if (event.target === commentsModal) {
-            closeCommentsModal();
-        }
-    });
-});
-
-function filterDocuments() {
-    const tagFilter = document.getElementById('tagFilter');
-    const selectedTags = Array.from(tagFilter.selectedOptions).map(option => option.value);
-    const rows = document.querySelectorAll('.table-row');
-
-    rows.forEach(row => {
-        if (selectedTags.length === 0 || selectedTags.includes('')) {
-            // Show all if no tags selected
-            row.style.display = 'grid';
-        } else {
-            // Check if document has any of the selected tags
-            const docTags = Array.from(row.querySelectorAll('.tag')).map(tag => {
-                const tagName = tag.textContent.trim().replace('×', '');
-                const tagOption = Array.from(document.querySelectorAll('.tag-option')).find(option =>
-                    option.textContent.trim() === tagName
-                );
-                return tagOption ? tagOption.getAttribute('data-tag-id') : null;
-            }).filter(id => id !== null);
-
-            const hasSelectedTag = selectedTags.some(tagId => docTags.includes(tagId));
-            row.style.display = hasSelectedTag ? 'grid' : 'none';
-        }
-    });
-}
-
-function sortDocuments() {
-    const sortBy = document.getElementById('sortBy').value;
-    const table = document.querySelector('.documents-table');
-    const rows = Array.from(document.querySelectorAll('.table-row'));
-
-    rows.sort((a, b) => {
-        switch (sortBy) {
-            case 'name':
-                const nameA = a.querySelector('.col-name span').textContent.toLowerCase();
-                const nameB = b.querySelector('.col-name span').textContent.toLowerCase();
-                return nameA.localeCompare(nameB);
-
-            case 'tags':
-                const tagsA = a.querySelectorAll('.tag').length;
-                const tagsB = b.querySelectorAll('.tag').length;
-                return tagsB - tagsA; // Most tags first
-
-            case 'date':
-            default:
-                // Default is already sorted by date (newest first)
-                return 0;
-        }
-    });
-
-    // Re-append sorted rows
-    rows.forEach(row => table.appendChild(row));
 }
 </script>
 {% endblock %}
