@@ -51,32 +51,32 @@
             </div>
 
             {% for supplier in suppliers %}
-            <div class="supplier-row" data-supplier-id="{{ supplier[0] }}">
+            <div class="supplier-row" data-supplier-id="{{ supplier['id'] }}">
                 <div class="col-name">
-                    {% if supplier[4] %}
-                    <a href="{{ supplier[4] }}" target="_blank" class="supplier-link">
-                        {{ supplier[1] }}
+                    {% if supplier['website'] %}
+                    <a href="{{ supplier['website'] }}" target="_blank" class="supplier-link">
+                        {{ supplier['name'] }}
                         <i class="fas fa-external-link-alt"></i>
                     </a>
                     {% else %}
-                    <span class="supplier-name">{{ supplier[1] }}</span>
+                    <span class="supplier-name">{{ supplier['name'] }}</span>
                     {% endif %}
                 </div>
                 <div class="col-username">
-                    <span class="copyable" onclick="copyToClipboard('{{ supplier[2] }}', this)" title="Klikk for å kopiere">
-                        {{ supplier[2] if supplier[2] else '-' }}
+                    <span class="copyable" onclick="copyToClipboard('{{ supplier['username'] }}', this)" title="Klikk for å kopiere">
+                        {{ supplier['username'] if supplier['username'] else '-' }}
                     </span>
                 </div>
                 <div class="col-password">
-                    <span class="copyable password-field" onclick="copyToClipboard('{{ supplier[3] }}', this)" title="Klikk for å kopiere">
-                        {{ '●' * (supplier[3]|length) if supplier[3] else '-' }}
+                    <span class="copyable password-field" onclick="copyToClipboard('{{ supplier['password'] }}', this)" title="Klikk for å kopiere">
+                        {{ '●' * (supplier['password']|length) if supplier['password'] else '-' }}
                     </span>
                 </div>
                 <div class="col-actions">
-                    <button class="edit-btn" onclick="editSupplier({{ supplier[0] }}, '{{ supplier[1] }}', '{{ supplier[2] }}', '{{ supplier[3] }}', '{{ supplier[4] }}')" title="Rediger">
+                    <button class="edit-btn" onclick="editSupplier({{ supplier['id'] }}, '{{ supplier['name'] }}', '{{ supplier['username'] }}', '{{ supplier['password'] }}', '{{ supplier['website'] }}')" title="Rediger">
                         <i class="fas fa-cog"></i>
                     </button>
-                    <button class="delete-btn" onclick="deleteSupplier({{ supplier[0] }}, '{{ supplier[1] }}')" title="Slett">
+                    <button class="delete-btn" onclick="deleteSupplier({{ supplier['id'] }}, '{{ supplier['name'] }}')" title="Slett">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -522,7 +522,7 @@ function deleteSupplier(id, name) {
     if (confirm(`Er du sikker på at du vil slette leverandøren "${name}"?`)) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/delete_supplier/${id}`;
+        form.action = `/suppliers/delete/${id}`;
         form.style.display = 'none';
         document.body.appendChild(form);
         form.submit();
