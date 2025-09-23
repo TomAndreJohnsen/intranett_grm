@@ -20,16 +20,16 @@
                         <i class="fas fa-newspaper"></i>
                     </div>
                     <div class="newsletter-meta">
-                        <div class="newsletter-author">{{ newsletter[5] }}</div>
+                        <div class="newsletter-author">{{ newsletter['created_by_name'] }}</div>
                         <div class="newsletter-date">
-                            {% if newsletter[3] %}
-                                Sendt {{ newsletter[3] }}
+                            {% if newsletter['sent_date'] %}
+                                Sendt {{ newsletter['sent_date'] }}
                             {% else %}
-                                Opprettet {{ newsletter[4] }}
+                                Opprettet {{ newsletter['created_at'] }}
                             {% endif %}
                         </div>
                     </div>
-                    {% if newsletter[3] %}
+                    {% if newsletter['sent_date'] %}
                     <div class="newsletter-status sent">
                         <i class="fas fa-check-circle"></i>
                         Sendt
@@ -41,12 +41,12 @@
                     </div>
                     {% endif %}
                 </div>
-                <div class="newsletter-title" style="text-align: center;">{{ newsletter[1] }}</div>
+                <div class="newsletter-title" style="text-align: center;">{{ newsletter['title'] }}</div>
                 <div class="newsletter-excerpt">
-                    {{ newsletter[2][:300] }}{% if newsletter[2]|length > 300 %}...{% endif %}
+                    {{ newsletter['content'][:300] }}{% if newsletter['content']|length > 300 %}...{% endif %}
                 </div>
                 <div class="newsletter-actions">
-                    <button class="newsletter-action" onclick="viewFullNewsletter({{ newsletter[0] }}, '{{ newsletter[1] }}', `{{ newsletter[2] }}`)">
+                    <button class="newsletter-action" onclick="viewFullNewsletter({{ newsletter['id'] }}, '{{ newsletter['title'] }}', `{{ newsletter['content'] }}`)">
                         <i class="fas fa-eye"></i>
                         <span>Les hele nyhetsbrevet</span>
                     </button>
@@ -73,11 +73,11 @@
             <div class="widget-content">
                 {% for task in tasks %}
                 <div class="widget-item">
-                    <div class="widget-item-title">{{ task[1] }}</div>
+                    <div class="widget-item-title">{{ task['title'] }}</div>
                     <div class="widget-item-meta">
-                        <span class="task-priority priority-{{ task[3] }}">{{ task[3] }}</span>
-                        {% if task[4] %}
-                        · Tildelt: {{ task[4] }}
+                        <span class="task-priority priority-{{ task['priority'] }}">{{ task['priority'] }}</span>
+                        {% if task['assigned_to_name'] %}
+                        · Tildelt: {{ task['assigned_to_name'] }}
                         {% endif %}
                     </div>
                 </div>
@@ -89,7 +89,7 @@
                 </div>
                 {% endfor %}
                 <div style="margin-top: 16px;">
-                    <a href="#" class="btn-primary" style="text-decoration: none; display: inline-block; padding: 8px 16px; font-size: 12px;">
+                    <a href="{{ url_for('tasks') }}" class="btn-primary" style="padding: 8px 16px; font-size: 12px; border: none; cursor: pointer; text-decoration: none; display: inline-block;">
                         <i class="fas fa-plus"></i>
                         Ny oppgave
                     </a>
@@ -106,12 +106,12 @@
             <div class="widget-content">
                 {% for event in events %}
                 <div class="widget-item">
-                    <div class="widget-item-title">{{ event[1] }}</div>
+                    <div class="widget-item-title">{{ event['title'] }}</div>
                     <div class="widget-item-meta">
-                        {{ event[2] }}
-                        {% if event[3] %}{{ event[3] }}{% endif %}
-                        {% if event[4] %} · {{ event[4] }}{% endif %}
-                        {% if event[5] %} · {{ event[5] }}{% endif %}
+                        {{ event['start_date'] }}
+                        {% if event['start_time'] %}{{ event['start_time'] }}{% endif %}
+                        {% if event['location'] %} · {{ event['location'] }}{% endif %}
+                        {% if event['responsible_user_name'] %} · {{ event['responsible_user_name'] }}{% endif %}
                     </div>
                 </div>
                 {% else %}
@@ -122,7 +122,7 @@
                 </div>
                 {% endfor %}
                 <div style="margin-top: 16px;">
-                    <a href="#" class="btn-primary" style="text-decoration: none; display: inline-block; padding: 8px 16px; font-size: 12px;">
+                    <a href="{{ url_for('calendar') }}" class="btn-primary" style="padding: 8px 16px; font-size: 12px; border: none; cursor: pointer; text-decoration: none; display: inline-block;">
                         <i class="fas fa-plus"></i>
                         Ny hendelse
                     </a>
@@ -138,24 +138,24 @@
             </div>
             <div class="widget-content">
                 <div class="widget-item">
-                    <a href="#" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
+                    <a href="{{ url_for('documents') }}" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
                         <i class="fas fa-folder"></i> Dokumenter
                     </a>
                 </div>
                 <div class="widget-item">
-                    <a href="#" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
+                    <a href="{{ url_for('calendar') }}" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
                         <i class="fas fa-calendar"></i> Full kalender
                     </a>
                 </div>
                 <div class="widget-item">
-                    <a href="#" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
+                    <a href="{{ url_for('newsletter') }}" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
                         <i class="fas fa-newspaper"></i> Nyhetsbrev
                     </a>
                 </div>
                 {% if user and user.is_admin %}
                 <div class="widget-item">
-                    <a href="#" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
-                        <i class="fas fa-users"></i> Brukeradministrasjon
+                    <a href="{{ url_for('suppliers') }}" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
+                        <i class="fas fa-key"></i> Leverandører
                     </a>
                 </div>
                 {% endif %}
@@ -163,10 +163,9 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
 <!-- Newsletter View Modal -->
-<div id="newsletterViewModal" class="modal">
+<div id="newsletterViewModal" class="modal" style="display: none !important;">
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="modalNewsletterTitle">Nyhetsbrev</h3>
@@ -179,6 +178,9 @@
         </div>
     </div>
 </div>
+
+
+{% endblock %}
 
 <style>
 .feed-header {
@@ -316,24 +318,26 @@
 .modal {
     display: none;
     position: fixed;
-    z-index: 1000;
+    z-index: 99999 !important;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
+    transform: translateZ(0);
 }
 
 .modal-content {
     background-color: var(--bg-primary);
-    margin: 2% auto;
+    margin: 5% auto;
     padding: 0;
     border-radius: 12px;
     width: 90%;
-    max-width: 800px;
-    max-height: 90vh;
-    overflow-y: auto;
+    max-width: 600px;
     box-shadow: var(--shadow-lg);
+    position: relative;
+    z-index: 100000 !important;
+    transform: translateZ(0);
 }
 
 .modal-header {
@@ -342,10 +346,6 @@
     align-items: center;
     padding: 20px;
     border-bottom: 1px solid var(--border-color);
-    position: sticky;
-    top: 0;
-    background: var(--bg-primary);
-    z-index: 1001;
 }
 
 .modal-header h3 {
@@ -378,13 +378,56 @@
 .newsletter-full-content {
     line-height: 1.8;
     font-size: 16px;
-    color: var(--text-primary);
+    color: #333;
     white-space: pre-wrap;
 }
+
+.modal-content {
+    background-color: var(--bg-primary);
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-btn:hover {
+    background: var(--bg-tertiary);
+}
+
 </style>
 
 {% block scripts %}
 <script>
+
 function viewFullNewsletter(id, title, content) {
     document.getElementById('modalNewsletterTitle').textContent = title;
     document.getElementById('modalNewsletterContent').textContent = content;
@@ -399,11 +442,32 @@ function closeNewsletterModal() {
 
 document.addEventListener('DOMContentLoaded', function() {
     // Close modal when clicking outside
-    document.getElementById('newsletterViewModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeNewsletterModal();
-        }
-    });
+    const newsletterModal = document.getElementById('newsletterViewModal');
+    if (newsletterModal) {
+        newsletterModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeNewsletterModal();
+            }
+        });
+    }
+
+    const taskModal = document.getElementById('taskModal');
+    if (taskModal) {
+        taskModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeTaskModal();
+            }
+        });
+    }
+
+    const eventModal = document.getElementById('eventModal');
+    if (eventModal) {
+        eventModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEventModal();
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
