@@ -542,19 +542,19 @@ function renderTasks() {
 
     tasks.forEach(task => {
         // Apply filters
-        if (statusFilter && task[3] !== statusFilter) return;
-        if (priorityFilter && task[4] !== priorityFilter) return;
-        if (departmentFilter && task[5] !== departmentFilter) return;
+        if (statusFilter && task.status !== statusFilter) return;
+        if (priorityFilter && task.priority !== priorityFilter) return;
+        if (departmentFilter && task.department !== departmentFilter) return;
 
         const taskCard = createTaskCard(task);
 
-        if (task[3] === 'todo') {
+        if (task.status === 'todo') {
             todoContainer.appendChild(taskCard);
             todoCount++;
-        } else if (task[3] === 'in_progress') {
+        } else if (task.status === 'in_progress') {
             inProgressContainer.appendChild(taskCard);
             inProgressCount++;
-        } else if (task[3] === 'completed') {
+        } else if (task.status === 'completed') {
             completedContainer.appendChild(taskCard);
             completedCount++;
         }
@@ -581,7 +581,7 @@ function createTaskCard(task) {
     const card = document.createElement('div');
     card.className = 'task-card';
 
-    const priorityClass = task[4]; // priority
+    const priorityClass = task.priority; // priority
     const statusTranslations = {
         'todo': 'Å gjøre',
         'in_progress': 'Pågår',
@@ -590,20 +590,20 @@ function createTaskCard(task) {
 
     card.innerHTML = `
         <div class="task-header">
-            <div class="task-title">${task[1]}</div>
-            <span class="task-priority ${priorityClass}">${task[4]}</span>
+            <div class="task-title">${task.title}</div>
+            <span class="task-priority ${priorityClass}">${task.priority}</span>
         </div>
-        ${task[2] ? `<div class="task-description">${task[2]}</div>` : ''}
+        ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
         <div class="task-meta">
-            ${task[5] ? `<span><i class="fas fa-building"></i> ${task[5]}</span>` : ''}
-            <span><i class="fas fa-user"></i> Opprettet av: ${task[7]}</span>
-            ${task[8] ? `<span><i class="fas fa-user-check"></i> Tildelt: ${task[8]}</span>` : ''}
-            <span><i class="fas fa-calendar"></i> ${task[6]}</span>
+            ${task.department ? `<span><i class="fas fa-building"></i> ${task.department}</span>` : ''}
+            <span><i class="fas fa-user"></i> Opprettet av: ${task.created_by_name}</span>
+            ${task.assigned_to_name ? `<span><i class="fas fa-user-check"></i> Tildelt: ${task.assigned_to_name}</span>` : ''}
+            <span><i class="fas fa-calendar"></i> ${task.created_at}</span>
         </div>
         <div class="task-actions">
-            ${task[3] !== 'todo' ? `<button class="task-action-btn btn-todo" onclick="updateTaskStatus(${task[0]}, 'todo')">Å gjøre</button>` : ''}
-            ${task[3] !== 'in_progress' ? `<button class="task-action-btn btn-progress" onclick="updateTaskStatus(${task[0]}, 'in_progress')">Pågår</button>` : ''}
-            ${task[3] !== 'completed' ? `<button class="task-action-btn btn-complete" onclick="updateTaskStatus(${task[0]}, 'completed')">Ferdig</button>` : ''}
+            ${task.status !== 'todo' ? `<button class="task-action-btn btn-todo" onclick="updateTaskStatus(${task.id}, 'todo')">Å gjøre</button>` : ''}
+            ${task.status !== 'in_progress' ? `<button class="task-action-btn btn-progress" onclick="updateTaskStatus(${task.id}, 'in_progress')">Pågår</button>` : ''}
+            ${task.status !== 'completed' ? `<button class="task-action-btn btn-complete" onclick="updateTaskStatus(${task.id}, 'completed')">Ferdig</button>` : ''}
         </div>
     `;
 
