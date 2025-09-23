@@ -35,22 +35,22 @@
             <h3>Kommende hendelser</h3>
             <div class="events-list">
                 {% for event in events %}
-                <div class="event-item" data-date="{{ event[3] }}">
+                <div class="event-item" data-date="{{ event['start_date'] }}">
                     <div class="event-time">
-                        {% if event[5] %}{{ event[5][:5] }}{% else %}Hele dagen{% endif %}
+                        {% if event['start_time'] %}{{ event['start_time'][:5] }}{% else %}Hele dagen{% endif %}
                     </div>
                     <div class="event-details">
-                        <div class="event-title">{{ event[1] }}</div>
-                        {% if event[7] %}
+                        <div class="event-title">{{ event['title'] }}</div>
+                        {% if event['location'] %}
                         <div class="event-location">
                             <i class="fas fa-map-marker-alt"></i>
-                            {{ event[7] }}
+                            {{ event['location'] }}
                         </div>
                         {% endif %}
-                        {% if event[8] %}
+                        {% if event['responsible_user_name'] %}
                         <div class="event-responsible">
                             <i class="fas fa-user"></i>
-                            {{ event[8] }}
+                            {{ event['responsible_user_name'] }}
                         </div>
                         {% endif %}
                     </div>
@@ -519,7 +519,7 @@ function generateCalendar(year, month) {
         dayEvents.className = 'day-events';
 
         const dateString = date.toISOString().split('T')[0];
-        const dayEventsList = events.filter(event => event[3] === dateString);
+        const dayEventsList = events.filter(event => event.start_date === dateString);
 
         if (dayEventsList.length > 0) {
             dayElement.classList.add('has-events');
@@ -527,7 +527,7 @@ function generateCalendar(year, month) {
                 if (index < 3) { // Show max 3 events
                     const eventDiv = document.createElement('div');
                     eventDiv.className = 'day-event';
-                    eventDiv.textContent = event[1];
+                    eventDiv.textContent = event.title;
                     dayEvents.appendChild(eventDiv);
                 }
             });
