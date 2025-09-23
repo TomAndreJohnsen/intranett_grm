@@ -5,11 +5,24 @@
 {% block content %}
 <div class="tasks-container">
     <div class="tasks-header">
-        <h1>Oppgaver og feilmeldinger</h1>
-        <button class="btn-primary" onclick="openTaskModal()">
-            <i class="fas fa-plus"></i>
-            Ny oppgave
-        </button>
+        <h1>{% if archive_view %}Arkiverte oppgaver{% else %}Oppgaver og feilmeldinger{% endif %}</h1>
+        <div class="header-buttons">
+            {% if not archive_view %}
+            <button class="btn-secondary" onclick="window.location.href='{{ url_for('tasks_archive') }}'">
+                <i class="fas fa-archive"></i>
+                Arkiv
+            </button>
+            <button class="btn-primary" onclick="openTaskModal()">
+                <i class="fas fa-plus"></i>
+                Ny oppgave
+            </button>
+            {% else %}
+            <button class="btn-secondary" onclick="window.location.href='{{ url_for('tasks') }}'">
+                <i class="fas fa-arrow-left"></i>
+                Tilbake til oppgaver
+            </button>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Filters -->
@@ -146,6 +159,67 @@
     </div>
 </div>
 
+<!-- Edit Task Modal -->
+<div id="editTaskModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Rediger oppgave</h3>
+            <button class="close-btn" onclick="closeEditTaskModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('edit_task') }}" class="task-form">
+            <input type="hidden" id="edit-task-id" name="task_id">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-title">Tittel *</label>
+                    <input type="text" id="edit-title" name="title" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-department">Avdeling</label>
+                    <select id="edit-department" name="department">
+                        <option value="">Velg avdeling</option>
+                        <option value="salg">Salg</option>
+                        <option value="verksted">Verksted</option>
+                        <option value="hms">HMS</option>
+                        <option value="it">IT</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-priority">Prioritet</label>
+                    <select id="edit-priority" name="priority">
+                        <option value="low">Lav</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">Høy</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-assigned_to">Tildel til</label>
+                    <input type="text" id="edit-assigned_to" name="assigned_to" placeholder="Navn på person">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-description">Beskrivelse</label>
+                    <textarea id="edit-description" name="description" rows="4"></textarea>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeEditTaskModal()">Avbryt</button>
+                <button type="submit" class="btn-primary">Lagre endringer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <style>
 .tasks-container {
     max-width: 1400px;
@@ -163,6 +237,11 @@
 .tasks-header h1 {
     margin: 0;
     color: var(--text-primary);
+}
+
+.header-buttons {
+    display: flex;
+    gap: 12px;
 }
 
 .tasks-filters {
@@ -364,6 +443,38 @@
 .btn-complete:hover {
     background: var(--primary-green);
     color: white;
+}
+
+.btn-edit {
+    background: #e5e7eb;
+    color: #374151;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+}
+
+.btn-edit:hover {
+    background: #d1d5db;
+}
+
+.btn-archive {
+    background: #fbbf24;
+    color: #92400e;
+}
+
+.btn-archive:hover {
+    background: #f59e0b;
+    color: white;
+}
+
+.archived-badge {
+    background: #6b7280;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
 }
 
 .empty-column {
@@ -601,9 +712,17 @@ function createTaskCard(task) {
             <span><i class="fas fa-calendar"></i> ${task.created_at}</span>
         </div>
         <div class="task-actions">
-            ${task.status !== 'todo' ? `<button class="task-action-btn btn-todo" onclick="updateTaskStatus(${task.id}, 'todo')">Å gjøre</button>` : ''}
-            ${task.status !== 'in_progress' ? `<button class="task-action-btn btn-progress" onclick="updateTaskStatus(${task.id}, 'in_progress')">Pågår</button>` : ''}
-            ${task.status !== 'completed' ? `<button class="task-action-btn btn-complete" onclick="updateTaskStatus(${task.id}, 'completed')">Ferdig</button>` : ''}
+            ${!window.archiveView ? `
+                <button class="task-action-btn btn-edit" onclick="openEditTaskModal(${task.id}, '${task.title}', '${task.description || ''}', '${task.priority}', '${task.department || ''}', '${task.assigned_to_name || ''}')">
+                    <i class="fas fa-edit"></i>
+                </button>
+                ${task.status !== 'todo' ? `<button class="task-action-btn btn-todo" onclick="updateTaskStatus(${task.id}, 'todo')">Å gjøre</button>` : ''}
+                ${task.status !== 'in_progress' ? `<button class="task-action-btn btn-progress" onclick="updateTaskStatus(${task.id}, 'in_progress')">Pågår</button>` : ''}
+                ${task.status !== 'completed' ? `<button class="task-action-btn btn-complete" onclick="updateTaskStatus(${task.id}, 'completed')">Ferdig</button>` : ''}
+                ${task.status === 'completed' ? `<button class="task-action-btn btn-archive" onclick="archiveTask(${task.id})">Arkiver</button>` : ''}
+            ` : `
+                <span class="archived-badge">Arkivert</span>
+            `}
         </div>
     `;
 
@@ -646,6 +765,37 @@ function closeTaskModal() {
     document.body.style.overflow = 'auto';
 }
 
+function openEditTaskModal(id, title, description, priority, department, assignedTo) {
+    document.getElementById('edit-task-id').value = id;
+    document.getElementById('edit-title').value = title;
+    document.getElementById('edit-description').value = description || '';
+    document.getElementById('edit-priority').value = priority;
+    document.getElementById('edit-department').value = department || '';
+    document.getElementById('edit-assigned_to').value = assignedTo || '';
+
+    document.getElementById('editTaskModal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeEditTaskModal() {
+    document.getElementById('editTaskModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function archiveTask(taskId) {
+    if (confirm('Er du sikker på at du vil arkivere denne oppgaven?')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/tasks/archive/${taskId}`;
+        form.style.display = 'none';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Set archive view flag for JavaScript
+window.archiveView = {{ 'true' if archive_view else 'false' }};
+
 document.addEventListener('DOMContentLoaded', function() {
     renderTasks();
 
@@ -653,6 +803,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('taskModal').addEventListener('click', function(e) {
         if (e.target === this) {
             closeTaskModal();
+        }
+    });
+
+    // Close edit modal when clicking outside
+    document.getElementById('editTaskModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeEditTaskModal();
         }
     });
 });

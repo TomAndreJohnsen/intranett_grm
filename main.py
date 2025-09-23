@@ -265,10 +265,17 @@ def init_db():
             assigned_to_name TEXT,
             created_by_email TEXT,
             created_by_name TEXT,
+            archived INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Add archived column to existing tasks table if it doesn't exist
+    cursor.execute("PRAGMA table_info(tasks)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'archived' not in columns:
+        cursor.execute('ALTER TABLE tasks ADD COLUMN archived INTEGER DEFAULT 0')
 
     # Newsletter table
     cursor.execute('''
@@ -593,7 +600,7 @@ def tasks():
     tasks_list = conn.execute('''
         SELECT id, title, description, status, priority, department,
                created_at, created_by_name, assigned_to_name
-        FROM tasks ORDER BY
+        FROM tasks WHERE archived = 0 ORDER BY
             CASE status WHEN 'todo' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'completed' THEN 3 END,
             CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
             created_at DESC
@@ -647,6 +654,63 @@ def update_task_status():
         flash('Ugyldig oppgave eller status')
 
     return redirect(url_for('tasks'))
+
+@app.route('/tasks/edit', methods=['POST'])
+@auth_required
+def edit_task():
+    """Edit task."""
+    task_id = request.form.get('task_id')
+    title = request.form.get('title')
+    description = request.form.get('description')
+    priority = request.form.get('priority', 'medium')
+    department = request.form.get('department')
+    assigned_to = request.form.get('assigned_to')
+
+    if task_id and title:
+        conn = get_db_connection()
+        conn.execute('''
+            UPDATE tasks SET title = ?, description = ?, priority = ?, department = ?,
+                   assigned_to_name = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (title, description, priority, department, assigned_to or None, task_id))
+        conn.commit()
+        conn.close()
+        flash('Oppgave oppdatert!')
+    else:
+        flash('Oppgave-ID og tittel er påkrevd')
+
+    return redirect(url_for('tasks'))
+
+@app.route('/tasks/archive/<int:task_id>', methods=['POST'])
+@auth_required
+def archive_task(task_id):
+    """Archive task."""
+    conn = get_db_connection()
+    conn.execute('UPDATE tasks SET archived = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', (task_id,))
+    conn.commit()
+    conn.close()
+    flash('Oppgave arkivert!')
+    return redirect(url_for('tasks'))
+
+@app.route('/tasks/archive')
+@app.route('/tasks/archive/')
+@auth_required
+def tasks_archive():
+    """Archived tasks page."""
+    user = get_current_user()
+    conn = get_db_connection()
+
+    archived_tasks = conn.execute('''
+        SELECT id, title, description, status, priority, department,
+               created_at, created_by_name, assigned_to_name
+        FROM tasks WHERE archived = 1 ORDER BY updated_at DESC
+    ''').fetchall()
+
+    # Convert Row objects to dictionaries for JSON serialization
+    archived_tasks_dict = [dict(task) for task in archived_tasks]
+
+    conn.close()
+    return render_template('tasks.html', user=user, tasks=archived_tasks_dict, archive_view=True)
 
 
 # ========== SUPPLIERS ROUTES ==========
