@@ -89,33 +89,10 @@
             <div class="list-header">
                 <h3>Filer i {% if current_folder == 'it' %}IT{% elif current_folder == 'hms' %}HMS{% elif current_folder == 'varemottak' %}Varemottak{% else %}{{ current_folder.title() }}{% endif %}</h3>
                 <div class="list-actions">
-                    <div class="filter-controls">
-                        <!-- Tag Filter -->
-                        <div class="tag-filter">
-                            <label for="tagFilter">Filtrer etter tags:</label>
-                            <select id="tagFilter" multiple>
-                                <option value="">Alle tags</option>
-                                {% for tag in all_tags %}
-                                <option value="{{ tag['id'] }}" data-color="{{ tag['color'] }}">{{ tag['name'] }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <!-- Sort Control -->
-                        <div class="sort-control">
-                            <label for="sortBy">Sorter etter:</label>
-                            <select id="sortBy">
-                                <option value="date">Dato (nyeste først)</option>
-                                <option value="name">Navn (A-Å)</option>
-                                <option value="tags">Antall tags</option>
-                            </select>
-                        </div>
-
-                        <!-- Search -->
-                        <div class="search-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" placeholder="Søk etter filer..." id="searchInput">
-                        </div>
+                    <!-- Search -->
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Søk etter filer og tags..." id="searchInput">
                     </div>
                 </div>
             </div>
@@ -240,6 +217,11 @@
                     <div class="tag-option" data-tag-id="{{ tag['id'] }}" data-tag-name="{{ tag['name'] }}" onclick="toggleTagSelection({{ tag['id'] }}, '{{ tag['name'] }}', '{{ tag['color'] }}')"
                          style="background-color: {{ tag['color'] }}20; color: {{ tag['color'] }}; border: 1px solid {{ tag['color'] }}">
                         {{ tag['name'] }}
+                        {% if user and (user.is_admin or tag['created_by_email'] == user.mail) %}
+                        <button class="tag-delete-btn" onclick="deleteTag({{ tag['id'] }}, event)" title="Slett tag">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -549,35 +531,6 @@
     color: var(--text-primary);
 }
 
-/* Filter Controls */
-.filter-controls {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.tag-filter, .sort-control {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.tag-filter label, .sort-control label {
-    font-size: 12px;
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.tag-filter select, .sort-control select {
-    padding: 6px 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 14px;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    min-width: 120px;
-}
 
 /* Tags */
 .tags-container {
@@ -744,6 +697,30 @@
 .tag-option.selected {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+.tag-option {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tag-delete-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 2px;
+    font-size: 10px;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.tag-delete-btn:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
 }
 
 /* Comments Modal */
@@ -990,16 +967,6 @@
     }
 
     .search-box {
-        width: 200px;
-    }
-
-    .filter-controls {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-    }
-
-    .tag-filter, .sort-control {
         width: 100%;
     }
 
@@ -1057,7 +1024,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Search functionality
+    // Enhanced search functionality (searches in filename and tags)
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', function() {
@@ -1066,7 +1033,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             rows.forEach(row => {
                 const filename = row.getAttribute('data-filename');
-                if (filename.includes(searchTerm)) {
+                const tags = Array.from(row.querySelectorAll('.tag')).map(tag =>
+                    tag.textContent.trim().replace('×', '').toLowerCase()
+                );
+
+                const matchesFilename = filename.includes(searchTerm);
+                const matchesTags = tags.some(tag => tag.includes(searchTerm));
+
+                if (matchesFilename || matchesTags) {
                     row.style.display = 'grid';
                 } else {
                     row.style.display = 'none';
@@ -1196,6 +1170,42 @@ function removeSelectedTag(tagId) {
     selectedTags = selectedTags.filter(tag => tag.id !== tagId);
     updateSelectedTagsDisplay();
     updateTagOptionsDisplay();
+}
+
+function deleteTag(tagId, event) {
+    // Prevent triggering the tag selection
+    event.stopPropagation();
+
+    if (!confirm('Er du sikker på at du vil slette denne taggen? Dette vil fjerne den fra alle dokumenter.')) {
+        return;
+    }
+
+    fetch(`/api/tags/${tagId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Remove from UI
+            const tagElement = document.querySelector(`[data-tag-id="${tagId}"]`);
+            if (tagElement) {
+                tagElement.remove();
+            }
+
+            // Remove from selected tags if it was selected
+            selectedTags = selectedTags.filter(tag => tag.id !== tagId);
+            updateSelectedTagsDisplay();
+
+            // Reload page to update document tags
+            setTimeout(() => location.reload(), 500);
+        } else {
+            alert('Feil ved sletting av tag: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Feil ved sletting av tag');
+    });
 }
 
 function createNewTag() {

@@ -591,7 +591,7 @@ def documents(folder=None):
 
             # Get tags for this document
             tags = conn.execute('''
-                SELECT ut.id, ut.name, ut.color
+                SELECT ut.id, ut.name, ut.color, ut.created_by_email
                 FROM user_tags ut
                 JOIN document_tag_relations dtr ON ut.id = dtr.tag_id
                 WHERE dtr.document_id = ?
@@ -599,9 +599,10 @@ def documents(folder=None):
             ''', (doc['id'],)).fetchall()
             doc_dict['tags'] = [dict(tag) for tag in tags]
 
-            # Add comment info
-            doc_dict['has_comment'] = bool(doc['comment'])
-            doc_dict['comment'] = doc['comment'] or ''
+            # Add comment info (handle missing comment column for old documents)
+            comment = doc.get('comment') if 'comment' in doc.keys() else None
+            doc_dict['has_comment'] = bool(comment)
+            doc_dict['comment'] = comment or ''
 
             documents_dict.append(doc_dict)
     else:
@@ -1042,6 +1043,34 @@ def create_tag():
         return jsonify({'status': 'error', 'message': 'Tag name already exists'}), 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/tags/<int:tag_id>', methods=['DELETE'])
+@auth_required
+def delete_tag(tag_id):
+    """Delete a tag (only the creator or admin can delete)."""
+    user = get_current_user()
+
+    conn = get_db_connection()
+    try:
+        # Get tag info to check ownership
+        tag = conn.execute('SELECT created_by_email FROM user_tags WHERE id = ?', (tag_id,)).fetchone()
+
+        if not tag:
+            return jsonify({'status': 'error', 'message': 'Tag not found'}), 404
+
+        # Check permission (admin or creator)
+        if not user.get('is_admin') and tag['created_by_email'] != user.get('mail'):
+            return jsonify({'status': 'error', 'message': 'Permission denied'}), 403
+
+        # Delete tag (this will also delete relations due to CASCADE)
+        conn.execute('DELETE FROM user_tags WHERE id = ?', (tag_id,))
+        conn.commit()
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
 
 # ========== DOCUMENT TAG MANAGEMENT ==========
 @app.route('/api/documents/<int:doc_id>/tags', methods=['POST'])
