@@ -29,7 +29,6 @@
                 </div>
                 <div class="folder-info">
                     <h3>{% if folder == 'it' %}IT{% elif folder == 'hms' %}HMS{% elif folder == 'varemottak' %}Varemottak{% else %}{{ folder.title() }}{% endif %}</h3>
-                    <p>{% if folder == 'it' %}IT{% elif folder == 'hms' %}HMS{% elif folder == 'varemottak' %}Varemottak{% else %}{{ folder|capitalize }}{% endif %} dokumenter</p>
                 </div>
             </a>
             {% endfor %}
@@ -290,21 +289,22 @@
 
 .folders-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
 }
 
 .folder-card {
     background: var(--bg-primary);
     border: 2px solid var(--border-color);
     border-radius: 12px;
-    padding: 24px;
+    padding: 20px 16px;
     text-decoration: none;
     color: inherit;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+    min-height: 80px;
 }
 
 .folder-card:hover {
@@ -319,15 +319,16 @@
 }
 
 .folder-icon {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     background: linear-gradient(135deg, var(--primary-green) 0%, var(--dark-green) 100%);
-    border-radius: 12px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
-    font-size: 20px;
+    font-size: 18px;
+    flex-shrink: 0;
 }
 
 .folder-info h3 {
@@ -895,20 +896,25 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    width: 100%;
 }
 
 .color-options {
     display: flex;
-    gap: 8px;
+    gap: 4px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
 }
 
 .color-option {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     cursor: pointer;
     border: 2px solid transparent;
     transition: all 0.2s ease;
+    flex-shrink: 0;
+    min-width: 20px;
 }
 
 .color-option:hover, .color-option.selected {
