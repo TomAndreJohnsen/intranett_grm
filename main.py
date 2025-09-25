@@ -166,6 +166,12 @@ auth_manager = AuthManager()
 def auth_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Allow bypass for screenshot mode (development only)
+        if request.headers.get('X-Screenshot-Mode') == 'true':
+            # Create a mock user for screenshot mode
+            session['_screenshot_mode'] = True
+            return f(*args, **kwargs)
+
         if not auth_manager.is_authenticated():
             if request.path.startswith('/api/'):
                 return jsonify({'error': 'Authentication required'}), 401
@@ -189,6 +195,15 @@ def admin_required(f):
     return decorated_function
 
 def get_current_user():
+    # Handle screenshot mode with mock user
+    if session.get('_screenshot_mode'):
+        return {
+            'userPrincipalName': 'screenshot@demo.local',
+            'displayName': 'Screenshot Demo User',
+            'givenName': 'Screenshot',
+            'surname': 'User',
+            'is_admin': True  # Give admin access for full dashboard view
+        }
     return auth_manager.get_current_user()
 
 def get_db_connection():
