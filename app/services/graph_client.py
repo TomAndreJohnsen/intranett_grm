@@ -69,52 +69,207 @@ class GraphClient:
                     logger.error(f"Response content: {e.response.text}")
             return None
 
-    def resolve_folder_id(self, user: str, display_name: str, token: str = None) -> Optional[str]:
+    def resolve_folder_id(self, user: str, display_name_or_path: str, token: str = None) -> Optional[str]:
         """
-        Find mail folder ID by display name.
+        Find mail folder ID by display name or folder path.
+
+        Supports two modes:
+        1. If NEWSLETTER_FOLDER_ID env var is set, use it directly
+        2. Otherwise, resolve by display name or path traversal
+
+        For delegated permissions, we use /me/ endpoint since token is scoped to specific user.
 
         Args:
-            user: User email address
-            display_name: Folder display name to search for
+            user: User email address (ignored for delegated permissions)
+            display_name_or_path: Folder display name or path (e.g., "Inbox/Subfolder")
             token: Access token
 
         Returns:
             Folder ID if found, None otherwise
         """
-        path = f"users/{user}/mailFolders"
+        # Check if explicit folder ID is provided in environment
+        explicit_folder_id = os.environ.get('NEWSLETTER_FOLDER_ID', '').strip()
+        if explicit_folder_id:
+            logger.info(f"Using explicit folder ID from NEWSLETTER_FOLDER_ID: {explicit_folder_id}")
+            print(f"📁 Using explicit folder ID: {explicit_folder_id}")
+            return explicit_folder_id
+
+        logger.info(f"Resolving folder path: '{display_name_or_path}'")
+        print(f"📁 Resolving folder by name/path: '{display_name_or_path}'")
+
+        # Check if it's a path (contains "/")
+        if "/" in display_name_or_path:
+            return self._resolve_folder_by_path(display_name_or_path, token)
+        else:
+            return self._resolve_folder_by_name(display_name_or_path, token)
+
+    def _resolve_folder_by_name(self, display_name: str, token: str = None) -> Optional[str]:
+        """
+        Find mail folder ID by display name, searching root and child folders.
+        """
+        logger.info(f"Searching for folder by name: '{display_name}'")
+        print(f"🔍 Searching for folder by name: '{display_name}'")
+
+        # For delegated permissions, use /me/ endpoint
+        path = "me/mailFolders"
         params = {'$top': 100}
 
         result = self.graph_get(path, params, token)
         if not result or 'value' not in result:
-            logger.error(f"Failed to get mail folders for user {user}")
+            logger.error("Failed to get root mail folders")
+            print("❌ Failed to get root mail folders")
             return None
 
-        # Search for folder with matching display name
+        logger.info(f"Found {len(result['value'])} root folders to search")
+        print(f"📂 Found {len(result['value'])} root folders to search")
+
+        # Search for folder with matching display name in root
         for folder in result['value']:
-            if folder.get('displayName', '').lower() == display_name.lower():
-                logger.info(f"Found folder '{display_name}' with ID: {folder['id']}")
-                return folder['id']
+            folder_name = folder.get('displayName', '')
+            folder_id = folder.get('id', '')
+
+            if folder_name.lower() == display_name.lower():
+                logger.info(f"✅ Found folder '{display_name}' at root level with ID: {folder_id}")
+                print(f"✅ Found folder '{display_name}' at root level")
+                print(f"   ID: {folder_id}")
+                return folder_id
 
         # Search in child folders if not found at root level
+        logger.info("Folder not found at root level, searching child folders...")
+        print("🔍 Folder not found at root level, searching child folders...")
+
         for folder in result['value']:
-            child_path = f"users/{user}/mailFolders/{folder['id']}/childFolders"
+            parent_name = folder.get('displayName', 'Unknown')
+            parent_id = folder.get('id', '')
+
+            logger.info(f"Searching in parent folder: '{parent_name}'")
+            print(f"📁 Searching in parent folder: '{parent_name}'")
+
+            child_path = f"me/mailFolders/{parent_id}/childFolders"
             child_result = self.graph_get(child_path, {'$top': 100}, token)
 
             if child_result and 'value' in child_result:
-                for child_folder in child_result['value']:
-                    if child_folder.get('displayName', '').lower() == display_name.lower():
-                        logger.info(f"Found folder '{display_name}' in child folders with ID: {child_folder['id']}")
-                        return child_folder['id']
+                logger.info(f"Found {len(child_result['value'])} child folders in '{parent_name}'")
+                print(f"   📂 Found {len(child_result['value'])} child folders")
 
-        logger.warning(f"Folder '{display_name}' not found for user {user}")
+                for child_folder in child_result['value']:
+                    child_name = child_folder.get('displayName', '')
+                    child_id = child_folder.get('id', '')
+
+                    logger.info(f"   Checking child folder: '{child_name}' (ID: {child_id})")
+                    print(f"   - {child_name}")
+
+                    if child_name.lower() == display_name.lower():
+                        logger.info(f"✅ Found folder '{display_name}' in '{parent_name}' with ID: {child_id}")
+                        print(f"✅ Found folder '{display_name}' in '{parent_name}'")
+                        print(f"   ID: {child_id}")
+                        return child_id
+
+        logger.warning(f"❌ Folder '{display_name}' not found")
+        print(f"❌ Folder '{display_name}' not found")
         return None
+
+    def _resolve_folder_by_path(self, folder_path: str, token: str = None) -> Optional[str]:
+        """
+        Find mail folder ID by traversing a path (e.g., "Inbox/Subfolder/Target").
+        Starts from well-known 'Inbox' folder.
+        """
+        logger.info(f"Resolving folder by path: '{folder_path}'")
+        print(f"🗂️  Resolving folder by path: '{folder_path}'")
+
+        path_parts = [part.strip() for part in folder_path.split('/') if part.strip()]
+        if not path_parts:
+            logger.error("Empty folder path provided")
+            print("❌ Empty folder path provided")
+            return None
+
+        logger.info(f"Path parts to traverse: {path_parts}")
+        print(f"📋 Path parts to traverse: {' → '.join(path_parts)}")
+
+        # Start from inbox if first part is not a well-known folder
+        current_folder_id = None
+        start_index = 0
+
+        # Try to find the first folder in root folders
+        path = "me/mailFolders"
+        params = {'$top': 100}
+        result = self.graph_get(path, params, token)
+
+        if not result or 'value' not in result:
+            logger.error("Failed to get root mail folders for path traversal")
+            print("❌ Failed to get root mail folders for path traversal")
+            return None
+
+        # Look for the first path part in root folders
+        first_part = path_parts[0]
+        for folder in result['value']:
+            if folder.get('displayName', '').lower() == first_part.lower():
+                current_folder_id = folder['id']
+                start_index = 1
+                logger.info(f"✅ Found root folder '{first_part}' with ID: {current_folder_id}")
+                print(f"✅ Found root folder '{first_part}'")
+                break
+
+        # If first part not found in root, start from Inbox
+        if current_folder_id is None:
+            for folder in result['value']:
+                if folder.get('displayName', '').lower() == 'inbox':
+                    current_folder_id = folder['id']
+                    logger.info(f"Starting traversal from Inbox (ID: {current_folder_id})")
+                    print(f"📥 Starting traversal from Inbox")
+                    break
+
+        if current_folder_id is None:
+            logger.error("Could not find Inbox or starting folder")
+            print("❌ Could not find Inbox or starting folder")
+            return None
+
+        # Traverse the remaining path parts
+        for i, part in enumerate(path_parts[start_index:], start_index):
+            logger.info(f"Looking for folder '{part}' in current folder")
+            print(f"🔍 Step {i+1}: Looking for '{part}'")
+
+            child_path = f"me/mailFolders/{current_folder_id}/childFolders"
+            child_result = self.graph_get(child_path, {'$top': 100}, token)
+
+            if not child_result or 'value' not in child_result:
+                logger.error(f"Failed to get child folders at step {i+1}")
+                print(f"❌ Failed to get child folders at step {i+1}")
+                return None
+
+            found = False
+            for child_folder in child_result['value']:
+                child_name = child_folder.get('displayName', '')
+                child_id = child_folder.get('id', '')
+
+                logger.info(f"   Checking child folder: '{child_name}'")
+                print(f"   - {child_name}")
+
+                if child_name.lower() == part.lower():
+                    current_folder_id = child_id
+                    found = True
+                    logger.info(f"✅ Found '{part}' with ID: {child_id}")
+                    print(f"✅ Found '{part}'")
+                    break
+
+            if not found:
+                logger.error(f"❌ Folder '{part}' not found in path traversal")
+                print(f"❌ Folder '{part}' not found in path traversal")
+                return None
+
+        logger.info(f"✅ Successfully resolved path '{folder_path}' to ID: {current_folder_id}")
+        print(f"✅ Successfully resolved path to final folder")
+        print(f"   Final ID: {current_folder_id}")
+        return current_folder_id
 
     def fetch_messages(self, user: str, folder_id: str, top: int = None, token: str = None) -> List[Dict[str, Any]]:
         """
         Fetch messages from a mail folder.
 
+        For delegated permissions, we use /me/ endpoint since token is scoped to specific user.
+
         Args:
-            user: User email address
+            user: User email address (ignored for delegated permissions)
             folder_id: Mail folder ID
             top: Maximum number of messages to fetch
             token: Access token
@@ -125,7 +280,7 @@ class GraphClient:
         if not top:
             top = self.max_newsletters + 10  # Buffer for deduplication
 
-        path = f"users/{user}/mailFolders/{folder_id}/messages"
+        path = f"me/mailFolders/{folder_id}/messages"
         params = {
             '$top': top,
             '$orderby': 'receivedDateTime desc',
@@ -144,15 +299,17 @@ class GraphClient:
         """
         Get detailed message information including body and headers.
 
+        For delegated permissions, we use /me/ endpoint since token is scoped to specific user.
+
         Args:
-            user: User email address
+            user: User email address (ignored for delegated permissions)
             message_id: Message ID
             token: Access token
 
         Returns:
             Detailed message object or None if failed
         """
-        path = f"users/{user}/messages/{message_id}"
+        path = f"me/messages/{message_id}"
         params = {
             '$select': 'internetMessageHeaders,subject,from,receivedDateTime,body,hasAttachments'
         }
@@ -168,15 +325,17 @@ class GraphClient:
         """
         Get message attachments.
 
+        For delegated permissions, we use /me/ endpoint since token is scoped to specific user.
+
         Args:
-            user: User email address
+            user: User email address (ignored for delegated permissions)
             message_id: Message ID
             token: Access token
 
         Returns:
             List of attachment objects
         """
-        path = f"users/{user}/messages/{message_id}/attachments"
+        path = f"me/messages/{message_id}/attachments"
 
         result = self.graph_get(path, token=token)
         if not result or 'value' not in result:

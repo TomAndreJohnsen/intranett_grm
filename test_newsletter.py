@@ -18,7 +18,7 @@ def test_environment():
     print("🔧 Testing Environment Configuration...")
 
     required_vars = [
-        'TENANT_ID', 'CLIENT_ID', 'CLIENT_SECRET',
+        'TENANT_ID', 'CLIENT_ID',  # Removed CLIENT_SECRET for delegated auth
         'NEWSLETTER_USER', 'NEWSLETTER_FOLDER'
     ]
 
@@ -32,6 +32,9 @@ def test_environment():
         return False
 
     print("✅ All environment variables are set")
+    print(f"   TENANT_ID: {os.environ.get('TENANT_ID', 'Not set')}")
+    print(f"   CLIENT_ID: {os.environ.get('CLIENT_ID', 'Not set')}")
+    print(f"   GRAPH_SCOPE: {os.environ.get('GRAPH_SCOPE', 'Mail.Read (default)')}")
     return True
 
 def test_imports():
@@ -60,15 +63,29 @@ def test_imports():
 def test_authentication():
     """Test Graph API authentication."""
     print("🔐 Testing Graph API Authentication...")
+    print("⚠️  Note: This may trigger device code flow if no cached tokens exist")
 
     try:
         from services.graph_auth import GraphAuthManager
 
         auth_manager = GraphAuthManager()
+
+        # Check cache info first
+        cache_info = auth_manager.get_cache_info()
+        print(f"   Token cache exists: {cache_info.get('cache_file_exists', False)}")
+        print(f"   Cached accounts: {cache_info.get('accounts_count', 0)}")
+
+        if cache_info.get('accounts_count', 0) > 0:
+            print("   Attempting silent token acquisition...")
+        else:
+            print("   No cached accounts - this will trigger device code flow")
+            print("   You may need to authenticate as nyhetsbrev@gronvoldmaskin.no")
+
         token = auth_manager.get_token()
 
         if token:
             print("✅ Successfully acquired access token")
+            print(f"   Token length: {len(token)} characters")
             return True
         else:
             print("❌ Failed to acquire access token")
@@ -133,6 +150,37 @@ def test_sanitizer():
         print(f"❌ Sanitization error: {e}")
         return False
 
+def test_token_cache():
+    """Test token cache functionality."""
+    print("💾 Testing Token Cache Management...")
+
+    try:
+        from services.graph_auth import GraphAuthManager
+
+        auth_manager = GraphAuthManager()
+
+        # Get cache info
+        cache_info = auth_manager.get_cache_info()
+
+        print(f"   Cache file exists: {cache_info.get('cache_file_exists', False)}")
+        print(f"   Accounts in cache: {cache_info.get('accounts_count', 0)}")
+
+        if cache_info.get('accounts'):
+            for i, account in enumerate(cache_info['accounts']):
+                print(f"   Account {i+1}: {account.get('username', 'Unknown')}")
+
+        # Test cache operations
+        if cache_info.get('cache_file_exists', False):
+            print("✅ Token cache is working")
+            return True
+        else:
+            print("⚠️  No token cache file found (normal on first run)")
+            return True  # Not an error condition
+
+    except Exception as e:
+        print(f"❌ Token cache error: {e}")
+        return False
+
 def main():
     """Run all tests."""
     print("🚀 Newsletter Feature Test Suite")
@@ -141,8 +189,9 @@ def main():
     tests = [
         ("Environment", test_environment),
         ("Imports", test_imports),
-        ("Authentication", test_authentication),
+        ("Token Cache", test_token_cache),
         ("HTML Sanitizer", test_sanitizer),
+        ("Authentication", test_authentication),  # Moved to end as it may trigger device flow
     ]
 
     results = []
@@ -176,8 +225,12 @@ def main():
     else:
         print("⚠️  Some tests failed. Check the setup guide in NEWSLETTER_SETUP.md")
 
-    # Graph client test is optional and may fail in testing
-    print("\nNote: Graph Client test requires proper Azure AD setup and may fail during initial testing.")
+    # Important notes for delegated authentication
+    print("\n📝 Important Notes:")
+    print("• Authentication test may trigger device code flow on first run")
+    print("• You'll need credentials for nyhetsbrev@gronvoldmaskin.no")
+    print("• After first authentication, subsequent runs should be automatic")
+    print("• Token cache (token_cache.json) stores refresh tokens securely")
 
 if __name__ == "__main__":
     main()

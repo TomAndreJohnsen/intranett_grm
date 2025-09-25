@@ -20,33 +20,29 @@
                         <i class="fas fa-newspaper"></i>
                     </div>
                     <div class="newsletter-meta">
-                        <div class="newsletter-author">{{ newsletter['created_by_name'] }}</div>
+                        <div class="newsletter-author">{{ newsletter['sender_name'] }}</div>
                         <div class="newsletter-date">
-                            {% if newsletter['sent_date'] %}
-                                Sendt {{ newsletter['sent_date'] }}
+                            {% if newsletter.get('received_at_formatted') %}
+                                Mottatt {{ newsletter['received_at_formatted'] }}
+                            {% elif newsletter.get('received_at') %}
+                                Mottatt {{ newsletter['received_at'] }}
                             {% else %}
-                                Opprettet {{ newsletter['created_at'] }}
+                                Ingen dato
                             {% endif %}
                         </div>
                     </div>
-                    {% if newsletter['sent_date'] %}
                     <div class="newsletter-status sent">
                         <i class="fas fa-check-circle"></i>
-                        Sendt
+                        Mottatt
                     </div>
-                    {% else %}
-                    <div class="newsletter-status draft">
-                        <i class="fas fa-edit"></i>
-                        Utkast
-                    </div>
-                    {% endif %}
                 </div>
-                <div class="newsletter-title" style="text-align: center;">{{ newsletter['title'] }}</div>
+                <div class="newsletter-title" style="text-align: center;">{{ newsletter['subject'] }}</div>
                 <div class="newsletter-excerpt">
-                    {{ newsletter['content'][:300] }}{% if newsletter['content']|length > 300 %}...{% endif %}
+                    {% set content = newsletter['html_sanitized'] or '' %}
+                    {{ content[:300] }}{% if content|length > 300 %}...{% endif %}
                 </div>
                 <div class="newsletter-actions">
-                    <button class="newsletter-action" onclick="viewFullNewsletter({{ newsletter['id'] }}, '{{ newsletter['title'] }}', `{{ newsletter['content'] }}`)">
+                    <button class="newsletter-action" onclick="viewFullNewsletter({{ newsletter['id'] }}, '{{ newsletter['subject'] }}', `{{ newsletter['html_sanitized'] or '' }}`)">
                         <i class="fas fa-eye"></i>
                         <span>Les hele nyhetsbrevet</span>
                     </button>
@@ -148,7 +144,7 @@
                     </a>
                 </div>
                 <div class="widget-item">
-                    <a href="{{ url_for('newsletter') }}" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
+                    <a href="{{ url_for('newsletters') }}" style="text-decoration: none; color: var(--primary-green); font-weight: 500;">
                         <i class="fas fa-newspaper"></i> Nyhetsbrev
                     </a>
                 </div>

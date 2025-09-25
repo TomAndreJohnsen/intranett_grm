@@ -302,7 +302,7 @@ def init_db():
     columns = [column[1] for column in cursor.fetchall()]
 
     new_columns = [
-        ('message_id', 'TEXT UNIQUE'),
+        ('message_id', 'TEXT'),  # Removed UNIQUE - SQLite can't add UNIQUE to existing table
         ('subject', 'TEXT'),
         ('sender_name', 'TEXT'),
         ('sender_email', 'TEXT'),
@@ -318,6 +318,15 @@ def init_db():
         if column_name not in columns:
             cursor.execute(f'ALTER TABLE newsletters ADD COLUMN {column_name} {column_type}')
             print(f"Added column {column_name} to newsletters table")
+
+    # Create unique index on message_id if the column exists
+    if 'message_id' in [col[1] for col in cursor.execute("PRAGMA table_info(newsletters)")]:
+        try:
+            cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_newsletters_message_id ON newsletters(message_id)')
+            print("Created unique index on newsletters.message_id")
+        except sqlite3.OperationalError as e:
+            # Index might fail if there are duplicate message_ids, that's ok
+            print(f"Note: Could not create unique index on message_id: {e}")
 
     # Suppliers table
     cursor.execute('''
@@ -1014,7 +1023,7 @@ def sync_newsletters():
         result = newsletter_service.sync_newsletters()
 
         if result['success']:
-            flash(f"Synkronisering fullført: {result['saved']} nye, {result['skipped']} hoppet over, {result['errors']} feil")
+            flash(f"Synkronisering fullført: {result['saved']} nye, {result['updated']} oppdatert, {result['errors']} feil")
         else:
             flash(f"Synkronisering feilet: {'; '.join(result['messages'])}")
 
@@ -1323,7 +1332,7 @@ if __name__ == '__main__':
         print("   /documents     - Document management")
         print("   /tasks         - Task management")
         print("   /suppliers     - Supplier management")
-        print("   /newsletter    - Newsletter management")
+        print("   /newsletters   - Newsletter management")
         print("   /auth/login    - Microsoft login")
         print("=" * 50)
 

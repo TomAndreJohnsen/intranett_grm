@@ -4,60 +4,62 @@ This guide provides step-by-step instructions for setting up the Microsoft Graph
 
 ## Overview
 
-The newsletter feature automatically pulls emails from `nyhetsbrev@gronvoldmaskin.no` (folder "Godkjent") via Microsoft Graph API, sanitizes HTML content, stores in the database, and displays the latest 10 newsletters on the intranet dashboard.
+The newsletter feature automatically pulls emails from `nyhetsbrev@gronvoldmaskin.no` (folder "Godkjent") via Microsoft Graph API using **delegated permissions** with device code flow. This approach requires one-time authentication by the newsletter account owner but provides better security than application permissions.
 
 ## Features
 
-- ✅ **Automated Email Fetching**: Uses Microsoft Graph API with client credentials
+- ✅ **Automated Email Fetching**: Uses Microsoft Graph API with delegated Mail.Read permissions
+- ✅ **Device Code Authentication**: One-time setup with automatic token refresh
 - ✅ **Security Validation**: Validates sender domain (@gronvoldmaskin.no) and email authentication (SPF/DKIM/DMARC)
 - ✅ **HTML Sanitization**: Removes dangerous scripts/content while preserving formatting
 - ✅ **Inline Images**: Downloads and serves inline images with CID rewriting
 - ✅ **Timezone Support**: Displays times in Europe/Oslo timezone
-- ✅ **Admin Controls**: Admins can trigger manual synchronization
+- ✅ **Token Persistence**: Automatic refresh token management with cache file
 
 ## Azure AD Setup
 
-### 1. App Registration
+### 1. App Registration (Public Client)
 
 1. Go to [Azure Portal](https://portal.azure.com/) → **Azure Active Directory**
 2. Navigate to **App registrations** → **New registration**
 3. Fill out the form:
-   - **Name**: `IntranettNewsletters`
+   - **Name**: `IntranettNewslettersDelegated`
    - **Supported account types**: Accounts in this organizational directory only (Single tenant)
-   - **Redirect URI**: Leave empty for now
+   - **Redirect URI**: Select **"Public client/native (mobile & desktop)"** and leave URI empty
 4. Click **Register**
 5. **Copy and save**:
    - **Application (client) ID**
    - **Directory (tenant) ID**
 
-### 2. Client Secret
+### 2. Configure as Public Client
 
-1. In your app registration, go to **Certificates & secrets**
-2. Click **New client secret**
-3. Add a description: `Intranet Newsletter Integration`
-4. Set expiration: Choose appropriate timeframe (12 months recommended)
-5. Click **Add**
-6. **Copy and save the secret value immediately** (you won't be able to see it again)
+1. In your app registration, go to **Authentication**
+2. Under **Advanced settings**, set:
+   - **Allow public client flows**: **Yes**
+   - **Supported account types**: Single tenant only
+3. Click **Save**
 
-### 3. API Permissions
+### 3. API Permissions (Delegated)
 
 1. In your app registration, go to **API permissions**
-2. Click **Add a permission**
-3. Select **Microsoft Graph**
-4. Select **Application permissions**
-5. Search for and add:
-   - `Mail.Read` (Application) - *Required: Read mail in all mailboxes*
-6. Click **Add permissions**
-7. **Important**: Click **Grant admin consent for [your organization]**
-8. Verify the status shows "Granted"
+2. Remove any default permissions (like User.Read if present)
+3. Click **Add a permission**
+4. Select **Microsoft Graph**
+5. Select **Delegated permissions** (NOT Application permissions)
+6. Search for and add:
+   - `Mail.Read` (Delegated) - *Required: Read user mail*
+7. Click **Add permissions**
+8. **Note**: No admin consent required for delegated permissions
 
 ### 4. Verify Permissions
 
 Your API permissions should show:
 ```
 Microsoft Graph (1)
-├── Mail.Read - Application - Granted for [Organization]
+├── Mail.Read - Delegated - Not granted (this is normal)
 ```
+
+**Important**: Delegated permissions don't need admin consent and will show "Not granted" until the user (nyhetsbrev@gronvoldmaskin.no) consents during first login.
 
 ## Environment Configuration
 
@@ -69,20 +71,23 @@ Microsoft Graph (1)
 2. Update the following variables in `.env`:
 
 ```env
-# Microsoft Graph API Configuration
+# Newsletter Microsoft Graph API Configuration (DELEGATED PERMISSIONS)
 TENANT_ID=your-tenant-id-from-step-1
 CLIENT_ID=your-application-client-id-from-step-1
-CLIENT_SECRET=your-client-secret-from-step-2
 
-# Graph API Settings (usually don't change these)
-GRAPH_SCOPE=https://graph.microsoft.com/.default
+# Graph API Settings for Newsletter (delegated)
+GRAPH_SCOPE=Mail.Read
 GRAPH_BASE=https://graph.microsoft.com/v1.0
 
 # Newsletter Settings
 NEWSLETTER_USER=nyhetsbrev@gronvoldmaskin.no
 NEWSLETTER_FOLDER=Godkjent
+# Optional: Use explicit folder ID to avoid name resolution (recommended for localized tenants)
+# NEWSLETTER_FOLDER_ID=AAMkAGVmMDEzMTM4LTExYjUtNGNkYy05YzY4LTY3YTI3ZmU1YjY2OAAuAAAAAAD7sLojP...
 MAX_NEWSLETTERS=10
 ```
+
+**Note**: No CLIENT_SECRET is needed for delegated permissions with device code flow.
 
 ## Email Setup
 
@@ -97,13 +102,61 @@ MAX_NEWSLETTERS=10
 2. Create a new folder called **"Godkjent"**
 3. Set up mail rules to move approved newsletters to this folder
 
-### 3. Test Email Access
+### 3. Prepare Newsletter Account
 
-You can test Graph API access using Graph Explorer:
-1. Go to [Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer)
-2. Sign in with admin account
-3. Try: `GET /users/nyhetsbrev@gronvoldmaskin.no/mailFolders`
-4. Verify you can see the "Godkjent" folder
+The newsletter account (nyhetsbrev@gronvoldmaskin.no) needs to:
+1. Be accessible for device code authentication
+2. Have appropriate credentials available for first-time login
+3. Have the "Godkjent" folder created and populated with newsletters
+
+## Folder Resolution (Advanced)
+
+### Using Explicit Folder IDs
+
+For environments with localized folder names or complex folder structures, you can use explicit Microsoft Graph folder IDs instead of folder name resolution. This avoids potential issues with:
+- Localized folder names (e.g., "Innboks" instead of "Inbox")
+- Special characters in folder names
+- Ambiguous folder names in different languages
+
+### Getting Folder IDs
+
+1. **List all folders** to find the correct ID:
+   ```bash
+   python3 list_folders.py
+   ```
+
+2. **Find your target folder** in the output and copy its ID:
+   ```
+   📁 Godkjent
+      ID: AAMkAGVmMDEzMTM4LTExYjUtNGNkYy05YzY4LTY3YTI3ZmU1YjY2OAAuAAAAAAD7sLojP...
+   ```
+
+3. **Set the folder ID** in your `.env` file:
+   ```env
+   NEWSLETTER_FOLDER_ID=AAMkAGVmMDEzMTM4LTExYjUtNGNkYy05YzY4LTY3YTI3ZmU1YjY2OAAuAAAAAAD7sLojP...
+   ```
+
+### Folder Resolution Priority
+
+The system uses this priority order:
+
+1. **NEWSLETTER_FOLDER_ID** (if set) - Uses explicit folder ID directly
+2. **NEWSLETTER_FOLDER with path** (if contains "/") - Traverses folder path (e.g., "Inbox/Subfolder")
+3. **NEWSLETTER_FOLDER name** - Searches all folders by display name
+
+### Path Traversal Examples
+
+You can specify folder paths for nested folders:
+
+```env
+# For a folder structure like: Inbox → Project → Newsletters
+NEWSLETTER_FOLDER=Inbox/Project/Newsletters
+
+# Or start from any root folder: Sent Items → Archive
+NEWSLETTER_FOLDER=Sent Items/Archive
+```
+
+**Note**: Path traversal uses case-insensitive matching and will show detailed debug output during folder resolution.
 
 ## Installation & Dependencies
 
@@ -123,6 +176,62 @@ You can test Graph API access using Graph Explorer:
    ```
 
    This will automatically add new newsletter table columns.
+
+## First-Time Authentication Setup
+
+### 1. Initial Device Code Flow
+
+The first time you try to sync newsletters, you'll see:
+
+```
+============================================================
+📱 NEWSLETTER AUTHENTICATION REQUIRED
+============================================================
+Please visit: https://microsoft.com/devicelogin
+And enter code: ABCD1234
+
+⚠️  IMPORTANT: Sign in as: nyhetsbrev@gronvoldmaskin.no
+This is a one-time setup - future runs will be automatic.
+============================================================
+```
+
+### 2. Complete Authentication
+
+1. **Open the URL**: Go to https://microsoft.com/devicelogin
+2. **Enter the code**: Type the displayed code (e.g., ABCD1234)
+3. **Sign in**: Use credentials for `nyhetsbrev@gronvoldmaskin.no`
+4. **Grant permissions**: Consent to Mail.Read permission
+5. **Verify success**: You should see "Authentication complete" message
+
+### 3. Token Cache Creation
+
+After successful authentication:
+- A `token_cache.json` file is created in the project root
+- This contains encrypted refresh tokens for automatic renewals
+- **Keep this file secure** - it allows access to the newsletter mailbox
+- Future synchronizations will be automatic (no user interaction required)
+
+### 4. Token Renewal Process
+
+- Access tokens expire after 1 hour
+- Refresh tokens are used automatically to get new access tokens
+- Refresh tokens are valid for 90 days by default
+- If refresh tokens expire, device code flow will trigger again
+
+## Token Cache Management
+
+A utility script is provided to manage the token cache:
+
+```bash
+# Show cache information
+python manage_token_cache.py info
+
+# Test authentication (may trigger device code flow)
+python manage_token_cache.py test
+
+# Clear cache (forces re-authentication next time)
+python manage_token_cache.py clear
+```
 
 ## Usage
 
@@ -203,6 +312,7 @@ app/
    - Verify the "Godkjent" folder exists
    - Check that emails are actually in the folder
    - Confirm NEWSLETTER_USER and NEWSLETTER_FOLDER settings
+   - **For localized tenants**: Consider using NEWSLETTER_FOLDER_ID instead of NEWSLETTER_FOLDER
 
 4. **Permission Denied Errors**
    - Ensure the app registration has Mail.Read application permission
@@ -218,34 +328,41 @@ import logging
 logging.basicConfig(level=logging.INFO)
 ```
 
-### Testing Graph API
+### Testing Authentication
 
-Use PowerShell or curl to test API access:
+To test the delegated authentication flow:
 
-```powershell
-# Get access token
-$body = @{
-    client_id = "your-client-id"
-    client_secret = "your-client-secret"
-    scope = "https://graph.microsoft.com/.default"
-    grant_type = "client_credentials"
-}
+```bash
+# Run the test script
+python test_newsletter.py
 
-$response = Invoke-RestMethod -Uri "https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/token" -Method Post -Body $body
-$token = $response.access_token
-
-# Test mailbox access
-$headers = @{ Authorization = "Bearer $token" }
-Invoke-RestMethod -Uri "https://graph.microsoft.com/v1.0/users/nyhetsbrev@gronvoldmaskin.no/mailFolders" -Headers $headers
+# Or test directly by triggering sync
+python -c "
+from app.services.newsletter_ingest import NewsletterIngestService
+service = NewsletterIngestService('database.db')
+result = service.sync_newsletters()
+print('Sync result:', result)
+"
 ```
+
+**Note**: The first run will trigger device code authentication. Subsequent runs should be automatic.
 
 ## Security Best Practices
 
-1. **Rotate Secrets**: Regularly rotate the client secret
+1. **Secure Token Cache**: Protect `token_cache.json` file with appropriate file permissions
 2. **Monitor Usage**: Review API usage in Azure portal
-3. **Principle of Least Privilege**: Only grant necessary permissions
-4. **Network Security**: Restrict network egress if possible
-5. **Backup Strategy**: Ensure database backups include newsletter data
+3. **Principle of Least Privilege**: Only use delegated Mail.Read permission
+4. **Account Security**: Ensure nyhetsbrev@gronvoldmaskin.no account has strong authentication
+5. **Regular Reviews**: Periodically review who has access to the newsletter account
+6. **Backup Strategy**: Ensure database backups include newsletter data
+
+### Token Cache Security
+
+```bash
+# Set restrictive permissions on token cache
+chmod 600 token_cache.json
+chown app-user:app-group token_cache.json
+```
 
 ## Production Deployment
 

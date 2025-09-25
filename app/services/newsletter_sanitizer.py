@@ -108,25 +108,29 @@ class NewsletterSanitizer:
             return ""
 
         try:
-            # Clean HTML with bleach
+            print("🧹 Starting HTML sanitization...")
+            logger.info("Starting HTML sanitization")
+
+            # Clean HTML with bleach (bleach>=5.0 compatible)
             clean_html = bleach.clean(
                 html_content,
                 tags=self.ALLOWED_TAGS,
                 attributes=self.ALLOWED_ATTRIBUTES,
-                styles=self.ALLOWED_STYLES,
                 protocols=self.ALLOWED_PROTOCOLS,
                 strip=True,
                 strip_comments=True,
             )
 
-            # Additional custom sanitization
+            # Additional custom sanitization for CSS styles
             clean_html = self._remove_dangerous_attributes(clean_html)
             clean_html = self._sanitize_inline_styles(clean_html)
 
+            print("✅ HTML sanitization completed successfully")
             logger.info("HTML sanitization completed successfully")
             return clean_html
 
         except Exception as e:
+            print(f"❌ HTML sanitization failed: {e}")
             logger.error(f"HTML sanitization failed: {e}")
             # Return plain text as fallback
             return bleach.clean(html_content, tags=[], attributes={}, strip=True)
