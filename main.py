@@ -18,6 +18,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Import newsletter services
+try:
+    from app.services.newsletter_ingest import NewsletterIngestService
+except ImportError:
+    NewsletterIngestService = None
+
 # Configuration class
 class Config:
     """Application configuration class."""
@@ -150,7 +156,7 @@ Session(app)
 
 # Create upload directories
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-for folder in ['salg', 'verksted', 'hms', 'it', 'varemottak']:
+for folder in ['salg', 'verksted', 'hms', 'it', 'varemottak', 'newsletters']:
     os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], folder), exist_ok=True)
 
 # Initialize auth manager
@@ -291,6 +297,28 @@ def init_db():
         )
     ''')
 
+    # Add new fields to newsletters table for Graph API integration
+    cursor.execute("PRAGMA table_info(newsletters)")
+    columns = [column[1] for column in cursor.fetchall()]
+
+    new_columns = [
+        ('message_id', 'TEXT UNIQUE'),
+        ('subject', 'TEXT'),
+        ('sender_name', 'TEXT'),
+        ('sender_email', 'TEXT'),
+        ('received_at', 'TIMESTAMP'),
+        ('html_raw', 'TEXT'),
+        ('html_sanitized', 'TEXT'),
+        ('auth_results', 'TEXT'),
+        ('has_attachments', 'INTEGER DEFAULT 0'),
+        ('hero_image_path', 'TEXT')
+    ]
+
+    for column_name, column_type in new_columns:
+        if column_name not in columns:
+            cursor.execute(f'ALTER TABLE newsletters ADD COLUMN {column_name} {column_type}')
+            print(f"Added column {column_name} to newsletters table")
+
     # Suppliers table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS suppliers (
@@ -423,18 +451,21 @@ def dashboard():
     user = get_current_user()
     conn = get_db_connection()
 
-    # Get recent newsletters
-    if user.get('is_admin', False):
-        newsletters = conn.execute('''
-            SELECT id, title, content, sent_date, created_at, created_by_name
-            FROM newsletters ORDER BY created_at DESC LIMIT 10
-        ''').fetchall()
+    # Get recent newsletters - now using Graph API data
+    if NewsletterIngestService:
+        newsletter_service = NewsletterIngestService(app.config['DATABASE_PATH'])
+        newsletters = newsletter_service.get_recent_newsletters(5)  # Limit to 5 for dashboard
     else:
+        # Fallback query using new field structure
         newsletters = conn.execute('''
-            SELECT id, title, content, sent_date, created_at, created_by_name
-            FROM newsletters WHERE sent_date IS NOT NULL
-            ORDER BY sent_date DESC LIMIT 10
+            SELECT id, COALESCE(subject, title) as title, sender_name, sender_email,
+                   COALESCE(received_at, created_at) as created_at, html_sanitized
+            FROM newsletters
+            WHERE COALESCE(subject, title) IS NOT NULL
+            ORDER BY COALESCE(received_at, created_at) DESC
+            LIMIT 5
         ''').fetchall()
+        newsletters = [dict(n) for n in newsletters]
 
     # Get recent tasks
     tasks = conn.execute('''
@@ -451,7 +482,12 @@ def dashboard():
     ''').fetchall()
 
     # Convert Row objects to dictionaries for JSON serialization
-    newsletters_dict = [dict(newsletter) for newsletter in newsletters]
+    # newsletters are already dictionaries if from service, otherwise convert
+    if newsletters and not isinstance(newsletters[0], dict):
+        newsletters_dict = [dict(newsletter) for newsletter in newsletters]
+    else:
+        newsletters_dict = newsletters
+
     tasks_dict = [dict(task) for task in tasks]
     events_dict = [dict(event) for event in events]
 
@@ -913,51 +949,91 @@ def delete_supplier(supplier_id):
 
 
 # ========== NEWSLETTER ROUTES ==========
+@app.route('/newsletters')
+@app.route('/newsletters/')
+@auth_required
+def newsletters():
+    """Newsletter list page."""
+    user = get_current_user()
+
+    # Initialize newsletter service
+    if NewsletterIngestService:
+        newsletter_service = NewsletterIngestService(app.config['DATABASE_PATH'])
+        newsletters = newsletter_service.get_recent_newsletters(10)
+    else:
+        # Fallback to direct database query if service not available
+        conn = get_db_connection()
+        newsletters = conn.execute('''
+            SELECT id, subject as title, sender_name, sender_email, received_at,
+                   html_sanitized, has_attachments, hero_image_path
+            FROM newsletters
+            WHERE subject IS NOT NULL
+            ORDER BY received_at DESC
+            LIMIT 10
+        ''').fetchall()
+        newsletters = [dict(n) for n in newsletters]
+        conn.close()
+
+    return render_template('newsletters/list.html', user=user, newsletters=newsletters)
+
+@app.route('/newsletters/<int:newsletter_id>')
+@auth_required
+def newsletter_detail(newsletter_id):
+    """Newsletter detail page."""
+    user = get_current_user()
+
+    if NewsletterIngestService:
+        newsletter_service = NewsletterIngestService(app.config['DATABASE_PATH'])
+        newsletter = newsletter_service.get_newsletter_by_id(newsletter_id)
+    else:
+        # Fallback to direct database query
+        conn = get_db_connection()
+        newsletter = conn.execute('''
+            SELECT * FROM newsletters WHERE id = ?
+        ''', (newsletter_id,)).fetchone()
+        if newsletter:
+            newsletter = dict(newsletter)
+        conn.close()
+
+    if not newsletter:
+        flash('Nyhetsbrev ikke funnet')
+        return redirect(url_for('newsletters'))
+
+    return render_template('newsletters/detail.html', user=user, newsletter=newsletter)
+
+@app.route('/newsletters/sync', methods=['POST'])
+@admin_required
+def sync_newsletters():
+    """Synchronize newsletters from Graph API."""
+    if not NewsletterIngestService:
+        flash('Newsletter service ikke tilgjengelig - sjekk konfigurasjonen')
+        return redirect(url_for('newsletters'))
+
+    try:
+        newsletter_service = NewsletterIngestService(app.config['DATABASE_PATH'])
+        result = newsletter_service.sync_newsletters()
+
+        if result['success']:
+            flash(f"Synkronisering fullført: {result['saved']} nye, {result['skipped']} hoppet over, {result['errors']} feil")
+        else:
+            flash(f"Synkronisering feilet: {'; '.join(result['messages'])}")
+
+    except Exception as e:
+        flash(f'Synkronisering feilet: {str(e)}')
+
+    return redirect(url_for('newsletters'))
+
+# Legacy newsletter route redirect
 @app.route('/newsletter')
 @app.route('/newsletter/')
-@auth_required
-def newsletter():
-    """Newsletter page."""
-    user = get_current_user()
-    conn = get_db_connection()
-    newsletters = conn.execute('SELECT id, title, content, sent_date, created_at, created_by_name FROM newsletters ORDER BY created_at DESC').fetchall()
+def newsletter_legacy():
+    """Redirect legacy newsletter route to new route."""
+    return redirect(url_for('newsletters'))
 
-    # Convert Row objects to dictionaries for JSON serialization
-    newsletters_dict = [dict(newsletter) for newsletter in newsletters]
-
-    conn.close()
-    return render_template('newsletter.html', user=user, newsletters=newsletters_dict)
-
-@app.route('/newsletter/create', methods=['POST'])
-@admin_required
-def create_newsletter():
-    """Create newsletter."""
-    user = get_current_user()
-    title = request.form.get('title')
-    content = request.form.get('content')
-
-    if title and content:
-        conn = get_db_connection()
-        conn.execute('INSERT INTO newsletters (title, content, created_by_email, created_by_name) VALUES (?, ?, ?, ?)',
-                    (title, content, user.get('mail'), user.get('displayName')))
-        conn.commit()
-        conn.close()
-        flash('Nyhetsbrev opprettet!')
-    else:
-        flash('Tittel og innhold er påkrevd')
-
-    return redirect(url_for('newsletter'))
-
-@app.route('/newsletter/send/<int:newsletter_id>', methods=['POST'])
-@admin_required
-def send_newsletter(newsletter_id):
-    """Send newsletter."""
-    conn = get_db_connection()
-    conn.execute('UPDATE newsletters SET sent_date = CURRENT_TIMESTAMP WHERE id = ?', (newsletter_id,))
-    conn.commit()
-    conn.close()
-    flash('Nyhetsbrev sendt! (Simulert - e-postintegrasjon må implementeres)')
-    return redirect(url_for('newsletter'))
+@app.route('/static/newsletters/<filename>')
+def serve_newsletter_image(filename):
+    """Serve newsletter images."""
+    return send_from_directory('uploads/newsletters', filename)
 
 
 # ========== API ROUTES ==========

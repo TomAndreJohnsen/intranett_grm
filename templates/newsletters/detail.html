@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}{{ newsletter.subject or newsletter.title or "Nyhetsbrev" }} - GRM Intranett{% endblock %}
+
+{% block content %}
+<div class="newsletter-detail-container">
+    <div class="newsletter-header">
+        <div class="newsletter-nav">
+            <a href="{{ url_for('newsletters') }}" class="btn-secondary">
+                <i class="fas fa-arrow-left"></i>
+                Tilbake til liste
+            </a>
+        </div>
+
+        <div class="newsletter-info">
+            <h1>{{ newsletter.subject or newsletter.title or "Uten tittel" }}</h1>
+
+            <div class="newsletter-meta">
+                <div class="meta-item">
+                    <i class="fas fa-user"></i>
+                    <span>{{ newsletter.sender_name or newsletter.sender_email or "Ukjent avsender" }}</span>
+                </div>
+
+                <div class="meta-item">
+                    <i class="fas fa-calendar"></i>
+                    <span>
+                        {% if newsletter.received_at_formatted %}
+                            {{ newsletter.received_at_formatted }}
+                        {% elif newsletter.received_at %}
+                            {{ newsletter.received_at }}
+                        {% else %}
+                            Ingen dato
+                        {% endif %}
+                    </span>
+                </div>
+
+                {% if newsletter.has_attachments %}
+                <div class="meta-item">
+                    <i class="fas fa-paperclip"></i>
+                    <span>Har vedlegg</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="newsletter-content">
+        {% if newsletter.html_sanitized %}
+            <div class="newsletter-body">
+                {{ newsletter.html_sanitized | safe }}
+            </div>
+        {% elif newsletter.content %}
+            <div class="newsletter-body legacy-content">
+                {{ newsletter.content | replace('\n', '<br>') | safe }}
+            </div>
+        {% else %}
+            <div class="empty-content">
+                <i class="fas fa-file-alt"></i>
+                <p>Ingen innhold tilgjengelig</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.newsletter-detail-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.newsletter-header {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.newsletter-nav {
+    margin-bottom: 20px;
+}
+
+.newsletter-nav .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    text-decoration: none;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.newsletter-nav .btn-secondary:hover {
+    background: var(--border-color);
+    transform: translateX(-2px);
+}
+
+.newsletter-info h1 {
+    color: var(--text-primary);
+    margin: 0 0 16px 0;
+    line-height: 1.3;
+}
+
+.newsletter-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.meta-item i {
+    color: var(--primary-green);
+    width: 16px;
+}
+
+.newsletter-content {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.newsletter-body {
+    padding: 30px;
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 16px;
+}
+
+/* Style the sanitized HTML content */
+.newsletter-body h1,
+.newsletter-body h2,
+.newsletter-body h3,
+.newsletter-body h4,
+.newsletter-body h5,
+.newsletter-body h6 {
+    color: var(--text-primary);
+    margin: 24px 0 16px 0;
+}
+
+.newsletter-body h1 { font-size: 1.8em; }
+.newsletter-body h2 { font-size: 1.5em; }
+.newsletter-body h3 { font-size: 1.3em; }
+
+.newsletter-body p {
+    margin: 16px 0;
+}
+
+.newsletter-body ul,
+.newsletter-body ol {
+    margin: 16px 0;
+    padding-left: 20px;
+}
+
+.newsletter-body li {
+    margin: 8px 0;
+}
+
+.newsletter-body a {
+    color: var(--primary-green);
+    text-decoration: underline;
+}
+
+.newsletter-body a:hover {
+    text-decoration: none;
+}
+
+.newsletter-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 16px 0;
+    box-shadow: var(--shadow);
+}
+
+.newsletter-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.newsletter-body th,
+.newsletter-body td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.newsletter-body th {
+    background: var(--bg-tertiary);
+    font-weight: 600;
+}
+
+.newsletter-body blockquote {
+    border-left: 4px solid var(--primary-green);
+    margin: 20px 0;
+    padding: 16px 20px;
+    background: var(--bg-tertiary);
+    border-radius: 0 8px 8px 0;
+}
+
+.newsletter-body pre,
+.newsletter-body code {
+    background: var(--bg-tertiary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.newsletter-body pre {
+    padding: 16px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.legacy-content {
+    background: #fff9e6;
+    border: 1px solid #f0c674;
+}
+
+.empty-content {
+    padding: 60px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.empty-content i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: var(--border-color);
+}
+
+@media (max-width: 768px) {
+    .newsletter-detail-container {
+        padding: 16px;
+    }
+
+    .newsletter-meta {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .newsletter-body {
+        padding: 20px;
+        font-size: 15px;
+    }
+
+    .newsletter-body h1 { font-size: 1.6em; }
+    .newsletter-body h2 { font-size: 1.4em; }
+    .newsletter-body h3 { font-size: 1.2em; }
+
+    .newsletter-body table {
+        font-size: 14px;
+    }
+
+    .newsletter-body th,
+    .newsletter-body td {
+        padding: 8px;
+    }
+}
+
+/* Dark mode support for newsletter content */
+@media (prefers-color-scheme: dark) {
+    .newsletter-body {
+        background: var(--bg-secondary);
+    }
+
+    .newsletter-body blockquote {
+        background: var(--bg-primary);
+    }
+
+    .newsletter-body pre,
+    .newsletter-body code {
+        background: var(--bg-primary);
+    }
+}
+</style>
+{% endblock %}
