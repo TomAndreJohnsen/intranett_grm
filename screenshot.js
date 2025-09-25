@@ -53,7 +53,7 @@ const path = require('path');
     console.log('✅ Dashboard loaded successfully');
 
     // Wait a bit more for any dynamic content (like newsletter cards) to load
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     console.log('⏳ Waiting for dynamic content...');
 

@@ -378,10 +378,27 @@ class GraphClient:
                     if not details:
                         continue
 
-                    # Get attachments if present
-                    attachments = []
-                    if message.get('hasAttachments'):
-                        attachments = self.get_message_attachments(self.newsletter_user, message['id'], token)
+                    # Always get attachments (hasAttachments flag is unreliable for inline images)
+                    print(f"   📎 Fetching attachments for message...")
+                    logger.info(f"Fetching attachments for message {message['id']}")
+                    attachments = self.get_message_attachments(self.newsletter_user, message['id'], token)
+
+                    # Filter for inline image attachments only
+                    inline_attachments = []
+                    for attachment in attachments:
+                        if (attachment.get('isInline', False) and
+                            attachment.get('contentId') and
+                            attachment.get('contentType', '').startswith('image/')):
+                            inline_attachments.append(attachment)
+                            print(f"   🖼️  Found inline image: {attachment.get('contentId')} ({attachment.get('contentType')})")
+                            logger.info(f"Found inline image attachment: {attachment.get('contentId')} - {attachment.get('contentType')}")
+
+                    if inline_attachments:
+                        print(f"   ✅ Found {len(inline_attachments)} inline image attachments")
+                    else:
+                        print(f"   📎 No inline image attachments found")
+
+                    attachments = inline_attachments
 
                     # Create newsletter data object
                     newsletter_data = {

@@ -112,16 +112,33 @@ class NewsletterIngestService:
                 result['reason'] = 'No content found'
                 return result
 
-            # Sanitize HTML
-            sanitized_html = self.sanitizer.sanitize_html(html_content)
+            print(f"   📄 Processing HTML content ({len(html_content)} chars)")
+            logger.info(f"Processing HTML content: {len(html_content)} characters")
+
+            # Step 1: Process SafeLinks (before sanitization)
+            safelinks_processed_html = self.sanitizer.process_safelinks(html_content)
+
+            # Step 2: Process inline images (before sanitization)
+            images_processed_html, hero_image_path, has_inline_attachments = self.sanitizer.process_inline_images(
+                safelinks_processed_html, attachments, message_id
+            )
+
+            # Log inline attachment processing results
+            if has_inline_attachments:
+                print(f"   ✅ Inline attachments processed and saved")
+                logger.info(f"Inline attachments processed for message {message_id}")
+            else:
+                print(f"   📎 No inline attachments to process")
+                logger.info(f"No inline attachments found for message {message_id}")
+
+            # Step 3: Sanitize HTML (now processes clean img tags with local paths)
+            sanitized_html = self.sanitizer.sanitize_html(images_processed_html)
             if not sanitized_html:
                 result['reason'] = 'HTML sanitization failed'
                 return result
 
-            # Process inline images
-            processed_html, hero_image_path = self.sanitizer.process_inline_images(
-                sanitized_html, attachments, message_id
-            )
+            # Final processed HTML
+            processed_html = sanitized_html
 
             # Convert received datetime to Oslo timezone
             received_at_oslo = self._convert_to_oslo_time(received_at)
@@ -140,7 +157,7 @@ class NewsletterIngestService:
                 'html_raw': html_content,
                 'html_sanitized': processed_html,
                 'auth_results': json.dumps(auth_results),
-                'has_attachments': len(attachments) > 0,
+                'has_attachments': has_inline_attachments,  # Set based on actual processed attachments
                 'hero_image_path': hero_image_path
             }
 
